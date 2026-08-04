@@ -113,22 +113,33 @@ function M.setup(opts)
 
   -- First-run: auto-offer setup wizard if no vaults are linked yet.
   -- Uses a one-shot VimEnter autocmd so we don't block startup.
+  -- First-run wizard: fires when obsidian is loaded and no vaults are linked.
+  -- With lazy ft='markdown', this may be deferred until the first .md buffer.
   if vim.tbl_isempty(config.remotes) then
-    vim.api.nvim_create_autocmd("VimEnter", {
+    local function offer_wizard()
+      if not _G.Obsidian then return end -- obsidian hasn't loaded yet, skip
+      local choice = vim.fn.confirm(
+        "obsidian-sync: No vaults linked yet.\nRun the setup wizard now?",
+        "&Yes\n&No",
+        1
+      )
+      if choice == 1 then
+        sync.setup()
+      else
+        vim.notify(
+          "[obsidian-sync] Run :ObsidianSync or :Obsidian sync setup later.",
+          vim.log.levels.INFO
+        )
+      end
+    end
+    -- Try early; also listen for obsidian workspace init as fallback.
+    vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = offer_wizard })
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "ObsidianWorkpspaceSet",
       once = true,
       callback = vim.schedule_wrap(function()
-        local choice = vim.fn.confirm(
-          "obsidian-sync: No vaults linked yet.\nRun the setup wizard now?",
-          "&Yes\n&No",
-          1
-        )
-        if choice == 1 then
-          sync.setup()
-        else
-          vim.notify(
-            "[obsidian-sync] Run :Obsidian sync setup later to connect a vault.",
-            vim.log.levels.INFO
-          )
+        if vim.tbl_isempty(config.remotes) then
+          offer_wizard()
         end
       end),
     })

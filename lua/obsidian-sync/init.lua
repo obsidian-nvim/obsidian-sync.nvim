@@ -55,7 +55,19 @@ end
 
 local function persist(cfg)
   config = cfg
+  -- Strip non-serializable keys (function references) before encoding.
+  local saved = {}
+  for k, v in pairs(config) do
+    if type(v) == "function" then
+      saved[k] = v
+      config[k] = nil
+    end
+  end
   local ok, encoded = pcall(vim.fn.json_encode, config)
+  -- Restore stripped keys.
+  for k, v in pairs(saved) do
+    config[k] = v
+  end
   if not ok then
     return
   end

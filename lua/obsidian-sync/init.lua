@@ -110,11 +110,100 @@ function M.setup(opts)
   if config.trigger == "on_write" and obsidian and obsidian.opts and obsidian.opts.sync then
     obsidian.opts.sync.trigger = "on_write"
   end
+
+  -- First-run: auto-offer setup wizard if no vaults are linked yet.
+  -- Uses a one-shot VimEnter autocmd so we don't block startup.
+  if vim.tbl_isempty(config.remotes) then
+    vim.api.nvim_create_autocmd("VimEnter", {
+      once = true,
+      callback = vim.schedule_wrap(function()
+        local choice = vim.fn.confirm(
+          "obsidian-sync: No vaults linked yet.\nRun the setup wizard now?",
+          "&Yes\n&No",
+          1
+        )
+        if choice == 1 then
+          sync.setup()
+        else
+          vim.notify(
+            "[obsidian-sync] Run :Obsidian sync setup later to connect a vault.",
+            vim.log.levels.INFO
+          )
+        end
+      end),
+    })
+  end
 end
 
 ---@return obsidian.sync.Backend?
 function M.backend()
   return require "obsidian-sync.backend"
 end
+
+-- ── convenience: direct command ─────────────────────────────────────────
+
+vim.api.nvim_create_user_command("ObsidianSync", function()
+  local ok, sync = pcall(require, "obsidian.sync")
+  if not ok then
+    vim.notify("[obsidian-sync] obsidian.nvim not found.", vim.log.levels.ERROR)
+    return
+  end
+  -- If any vault already configured, show the menu; otherwise jump to wizard.
+  local has = false
+  for _, ws in ipairs(Obsidian.workspaces or {}) do
+    if sync.is_configured(ws) then has = true; break end
+  end
+  if has then
+    sync.menu()
+  else
+    sync.setup()
+  end
+end, { desc = "obsidian-sync: open sync menu or setup wizard" })
+
+-- ── checkhealth ─────────────────────────────────────────────────────────
+
+---@module "obsidian"
+local function health()
+  local start = vim.health.start or vim.health.report_start
+  local ok = vim.health.ok or vim.health.report_ok
+  local warn = vim.health.warn or vim.health.report_warn
+  local err = vim.health.error or vim.health.report_error
+
+  start "obsidian-sync"
+
+  -- rclone binary
+  local rclone_bin = vim.fn.exepath "rclone"
+  if rclone_bin and rclone_bin ~= "" then
+    ok("rclone found: " .. rclone_bin)
+  else
+    err("rclone not found on PATH. Install from https://rclone.org/install/")
+  end
+
+  -- obsidian.nvim
+  local has_obs, _ = pcall(require, "obsidian.sync")
+  if has_obs then
+    ok "obsidian.nvim found"
+  else
+    err "obsidian.nvim not on runtimepath"
+  end
+
+  -- configured remotes
+  local remotes = config and config.remotes or {}
+  if vim.tbl_isempty(remotes) then
+    warn "No vaults linked. Run :ObsidianSync to set up."
+  else
+    for vault, remote in pairs(remotes) do
+      ok(string.format("  %s → %s", vault, remote))
+    end
+  end
+end
+
+vim.api.nvim_create_user_command("ObsidianSyncHealth", health, { desc = "obsidian-sync: check health" })
+
+-- Register with :checkhealth if available (Neovim >= 0.10)
+pcall(function()
+  local health_ns = vim.api.nvim_create_namespace "obsidian-sync"
+  -- Available via :checkhealth obsidian-sync (auto-discovered if lua/obsidian-sync/health.lua exists)
+end)
 
 return M

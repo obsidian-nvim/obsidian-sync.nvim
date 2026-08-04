@@ -5,24 +5,22 @@ S3, WebDAV, Nextcloud, Dropbox, Google Drive, OneDrive, SFTP, SMB, local folders
 every other remote rclone supports — the same feature set as the desktop
 [Remotely Save](https://github.com/remotely-save/remotely-save) plugin, without the app.
 
+Cross-platform: macOS, Linux, Windows.  The plugin delegates all network I/O to rclone,
+which handles every cloud protocol and TLS.  No cloud-specific code is shipped.
+
 It registers a `"rclone"` **sync backend** into [obsidian.nvim](https://github.com/obsidian-nvim/obsidian.nvim)'s
 pluggable sync module (`require("obsidian.sync").register`), so **all existing obsidian.nvim
-sync UX just works**: the `:Obsidian sync` menu, `Sync` statusline component, `on_write`
+sync UX just works**: `:Obsidian sync` menu, `Sync` statusline component, `on_write`
 debounced trigger and continuous mode — no changes to obsidian.nvim required.
-
-## Why rclone?
-
-The honest answer to "can we do it with zero external deps?": **no.** Neovim's Lua exposes no
-TLS (cloud storage is HTTPS-only) and no HMAC/crypto API, so a pure-Lua S3/WebDAV client is
-not feasible. rclone is the one canonical tool that already solves multi-cloud bidirectional
-sync (`bisync`) — installing it removes ~3000 lines of fragile cloud-client + OAuth code.
-On macOS: `brew install rclone`.
 
 ## Requirements
 
-- Neovim ≥ 0.10 (uses `vim.system` / `vim.uv`)
+- Neovim ≥ 0.10 (`vim.system` / `vim.uv`)
 - [obsidian.nvim](https://github.com/obsidian-nvim/obsidian.nvim) (community fork)
-- `rclone` on `$PATH`
+- `rclone` on `$PATH` — [install instructions](https://rclone.org/install/)
+  - macOS: `brew install rclone`
+  - Linux: `apt install rclone` / `pacman -S rclone`
+  - Windows: `winget install rclone` or download from rclone.org
 
 ## Installation
 
@@ -35,12 +33,13 @@ On macOS: `brew install rclone`.
     sync = {
       enabled = true,
       backend = "rclone",
+      -- triggers are backend-agnostic:
       trigger = "on_write", -- "on_write" | "continuous" | "manual"
     },
   },
 },
 {
-  "dir/path/to/obsidian-sync.nvim", -- or a git remote
+  "your-user/obsidian-sync.nvim",
   dependencies = { "obsidian-nvim/obsidian.nvim" },
   config = function()
     require("obsidian-sync").setup {
@@ -49,19 +48,21 @@ On macOS: `brew install rclone`.
         ["/path/to/my/vault"] = "s3:backups/my-vault",
       },
       check_interval = 300,  -- seconds between syncs in continuous mode
-      auto_resync = true,    -- retry once with --resync if bisync asks for it
-      -- extra rclone bisync flags
+      auto_resync = true,    -- retry once with --resync on first connect
+      safe_resync = true,    -- log a friendly notice on --resync (instead of ERROR)
       bisync = {
-        exclude = { ".trash/", "*.tmp" },
-        args = { "--max-delete=20", "--fast-list" },
+        exclude = { ".DS_Store", "*.bisync*", ".bisync/**" },
+        args = {},  -- extra rclone bisync flags, e.g. { "--max-delete=20" }
       },
     }
   end,
 }
 ```
 
-> Configure rclone remotes first with `rclone config` (S3, WebDAV, etc.). A local folder
-> also works as a target for a zero-setup two-way test.
+### Mapping persists across restarts
+
+Vault→remote mappings created through the setup wizard are saved to
+`stdpath("data")/obsidian-sync.json`.  You can also edit this file directly.
 
 ## Usage
 
@@ -70,48 +71,69 @@ Everything goes through the existing **`:Obsidian sync`** menu:
 | Command | What it does |
 |---|---|
 | `:Obsidian sync` | open the sync menu (first run offers the setup wizard) |
-| `:Obsidian sync setup` | wizard: pick existing rclone remote, run `rclone config`, or a local folder |
-| `:Obsidian sync start` | run sync once per `check_interval` (continuous) |
-| `:Obsidian sync pause` | stop the current sync |
+| `:Obsidian sync setup` | wizard — pick how to connect |
+| `:Obsidian sync start` | continuous sync (bisync every `check_interval` seconds) |
+| `:Obsidian sync pause` | stop current sync |
 | `:Obsidian sync sync` | one-shot sync now |
 | `:Obsidian sync log` | open the per-session sync log |
 | `:Obsidian sync disconnect` | unlink the vault |
 
-Triggers (set via `sync.trigger` in obsidian.nvim opts):
+### Setup wizard — 3 ways to connect
 
-- **`on_write`** — each saved note triggers a debounced one-shot sync (like Remotely Save).
+1. **WebDAV / Nextcloud** — enter URL + username + password directly.  The plugin
+   creates the rclone remote for you.  No manual `rclone config` required.
+2. **Existing rclone remote** — pick from your `rclone.conf` (S3, SFTP, etc.).
+3. **Local folder** — two-way sync between two directories on the same machine
+   (useful for testing, or syncing with a mounted drive).
+
+### Triggers
+
+- **`on_write`** — every saved note triggers a debounced one-shot sync
+  (2 s default, configurable via `vim.g.obsidian_sync_on_write_debounce_ms`).
 - **`continuous`** — a timer runs `rclone bisync` every `check_interval` seconds.
 - **`manual`** — only sync when you ask.
 
-A `Sync` statusline component is already exported by obsidian.nvim:
-`require("obsidian.sync.status").component` (see its docs).
+A `Sync` statusline component is exported by obsidian.nvim:
+`require("obsidian.sync.status").component`.
 
-## How it works
-
-The plugin implements obsidian.nvim's `obsidian.sync.Backend` contract:
+## How it works under the hood
 
 ```
-lua/obsidian-sync/
-  rclone.lua     -- thin rclone CLI wrapper (bisync aware)
-  backend.lua    -- the "rclone" Backend: start/pause/sync_once/setup/disconnect/log
-  init.lua       -- setup(), config persistence, backend registration
+obsidian.nvim  sync  menu / triggers / statusline
+                    │
+                    ▼  register("rclone", backend)
+     obsidian-sync.nvim  (backend.lua)
+                    │
+                    ▼  rclone bisync
+     rclone  ── S3 / WebDAV / SFTP / ...
 ```
 
-`rclone bisync` is a one-shot process, so **continuous mode** is a `vim.uv` timer loop that
-runs `bisync` each interval. One-shot syncs are run as async `vim.system` processes; output
-streams into obsidian.nvim's existing sync log and statusline. Vault↔remote mappings persist to
-`stdpath("data")/obsidian-sync.json` (wizard-created mappings survive restarts).
+`rclone bisync` is a one-shot deterministic tool: it compares two directory
+trees by size + modtime, copies differences bidirectionally, and on conflict
+keeps **both** versions as `Note.md.conflict1` / `Note.md.conflict2` —
+zero data loss, same behaviour as Remotely Save.
 
-### Conflict behavior
+Continuous mode is a `vim.uv` timer loop that runs bisync each interval.
+One-shot syncs run as async `vim.system` processes; output streams into
+obsidian.nvim's sync log and statusline.
 
-`bisync` never silently drops data: on a divergent edit it keeps **both** versions as
-`Note.md.conflict1` / `Note.md.conflict2` and logs the event, mirroring Remotely Save.
+## Replacing Remotely Save
 
-### First sync / resync
+If you're migrating from the desktop [Remotely Save](https://github.com/remotely-save/remotely-save)
+plugin:
 
-bisync sometimes refuses to start on a brand-new or previously-interrupted target and asks for
-`--resync`. With `auto_resync = true` (default) the plugin retries once automatically — the
-same "resync" Remotely Save does on first connect.
+1. Find your settings in `.obsidian/plugins/remotely-save/data.json`
+2. Create the matching rclone remote (`rclone config create` or use the wizard)
+3. Map your vault in `obsidian-sync.json` or via `setup()`:
+   ```json
+   { "remotes": { "/home/you/SECOND_BRAIN": "nc-secondbrain:" } }
+   ```
+4. Disable the Remotely Save plugin in the Obsidian desktop app (community plugins → toggle off)
+5. Enable `trigger = "on_write"` in Neovim — now Neovim handles sync when you save
+
+On mobile (iOS/Android Obsidian) you can keep Remotely Save if you need — both
+sync to the same WebDAV, and the `--resync` on first connect handles the
+baseline alignment automatically.
 
 ## License
 

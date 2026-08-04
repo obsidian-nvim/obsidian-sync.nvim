@@ -2,26 +2,29 @@
 ---
 --- Registers a "rclone" backend into obsidian.nvim's sync module so the
 --- existing `:Obsidian sync` menu, `on_write` trigger, continuous mode,
---- log buffer and statusline all work with S3 / WebDAV / Nextcloud /
---- Dropbox / Google Drive / SFTP / SMB / local folders — i.e. the same
---- feature set as the desktop "Remotely Save" plugin, without the desktop app.
+--- log buffer and statusline all work with WebDAV / Nextcloud / S3 / Dropbox
+--- / Google Drive / SFTP / SMB / local folders — i.e. the same feature set
+--- as the desktop "Remotely Save" plugin, without the desktop app.
+---
+--- Works on macOS, Linux, and Windows (rclone is fully cross-platform).
 ---
 --- Usage:
----   { "obsidian-nvim/obsidian.nvim", lazy = true }
+---   { "obsidian-nvim/obsidian.nvim", lazy = true, opts = { sync = { enabled = true, backend = "rclone" } } },
 ---   require("obsidian-sync").setup {
----     remotes = { ["/path/to/vault"] = "s3:mystorage/vault" },
----     check_interval = 300,
----     auto_resync = true,
----     bisync = { exclude = { ".trash/" }, args = { "--max-delete=20" } },
+---     remotes = { ["/path/to/vault"] = "my-webdav:" },
+---     trigger = "on_write",
+---     safe_resync = true,
 ---   }
 
 local M = {}
 
 local DEFAULT = {
-  remotes = {}, -- vault root -> "remote:path" (or an absolute local path)
+  remotes = {}, -- vault root → "remote:path" (or an absolute local path)
   check_interval = 300, -- seconds between continuous syncs
   auto_resync = true, -- retry once with --resync if bisync demands it
-  bisync = { exclude = {}, args = {} },
+  safe_resync = true, -- log a friendly notice instead of ERROR on first --resync
+  trigger = "manual", -- "on_write" | "continuous" | "manual" (overrides obsidian.nvim's sync.trigger)
+  bisync = { exclude = { ".DS_Store", "*.bisync*", ".bisync/**" }, args = {} },
 }
 
 local config
@@ -60,7 +63,7 @@ local function persist(cfg)
 end
 
 ---Configure the plugin and register the backend with obsidian.nvim.
----@param opts? { remotes?: table<string,string>, check_interval?: integer, auto_resync?: boolean, bisync?: { exclude?: string[], args?: string[] } }
+---@param opts? obsidian-sync.config
 function M.setup(opts)
   opts = opts or {}
 
@@ -75,6 +78,19 @@ function M.setup(opts)
   config.remotes = normalized
   persist(config)
 
+  -- Detect rclone binary (cross-platform).
+  local rclone_bin = vim.fn.exepath "rclone"
+  if rclone_bin and rclone_bin ~= "" then
+    require("obsidian-sync.rclone").bin = rclone_bin
+  elseif vim.fn.has "win32" == 1 then
+    for _, p in ipairs { "C:\\rclone\\rclone.exe", vim.fn.expand "~/rclone/rclone.exe" } do
+      if vim.fn.executable(p) == 1 then
+        require("obsidian-sync.rclone").bin = p
+        break
+      end
+    end
+  end
+
   local backend = require "obsidian-sync.backend"
   backend.configure(config)
   backend.persist = persist
@@ -82,22 +98,23 @@ function M.setup(opts)
   local ok, sync = pcall(require, "obsidian.sync")
   if not ok then
     vim.notify(
-      "[obsidian-sync] obsidian.nvim not found on the runtimepath. Load obsidian.nvim (as a dependency) before this plugin.",
+      "[obsidian-sync] obsidian.nvim not found on the runtimepath.\n"
+        .. "Load obsidian.nvim (as a dependency) before this plugin.",
       vim.log.levels.ERROR
     )
     return
   end
   sync.register("rclone", backend)
+
+  -- Apply trigger preference (auto-enables on_write if requested)
+  if config.trigger == "on_write" and obsidian and obsidian.opts and obsidian.opts.sync then
+    obsidian.opts.sync.trigger = "on_write"
+  end
 end
 
 ---@return obsidian.sync.Backend?
 function M.backend()
   return require "obsidian-sync.backend"
-end
-
----@return integer current check_interval for continuous sync (seconds)
-function M.check_interval()
-  return (config and config.check_interval) or DEFAULT.check_interval
 end
 
 return M

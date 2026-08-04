@@ -132,6 +132,8 @@ function M.setup(opts)
   if vim.tbl_isempty(config.remotes) then
     local function offer_wizard()
       if not _G.Obsidian then return end -- obsidian hasn't loaded yet, skip
+      -- Only offer the wizard when we're actually inside an Obsidian vault.
+      if vim.fn.isdirectory(".obsidian") == 0 then return end
       local choice = vim.fn.confirm(
         "obsidian-sync: No vaults linked yet.\nRun the setup wizard now?",
         "&Yes\n&No",

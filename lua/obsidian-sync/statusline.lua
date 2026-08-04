@@ -16,7 +16,14 @@ local function get_icon()
   if not ok then
     return ""
   end
-  return status.icon()
+  local ico = status.icon()
+  if ico ~= "" then
+    return ico
+  end
+  -- status module hasn't fired set() yet — return default for current kind
+  local kind = status.state and status.state.kind or "paused"
+  local defaults = { synced = "󰸞", syncing = "󰑓", paused = "󰏤", error = "󰅙" }
+  return defaults[kind] or ""
 end
 
 local function get_hl()

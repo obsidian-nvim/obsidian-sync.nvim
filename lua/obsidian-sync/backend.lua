@@ -26,6 +26,7 @@ local config = {
   auto_resync = true,
   safe_resync = true, -- warn before --resync (disables auto-retry warning)
   notify_events = true, -- show vim.notify on sync start / complete / error
+  progress_win = true, -- show floating progress window while syncing
   bisync = { exclude = {}, args = {} },
   persist = nil,
 }
@@ -113,6 +114,10 @@ function M.sync_once(dir, opts)
 
   local runner = require "obsidian.sync.runner"
   local status_mod = require "obsidian.sync.status"
+  local ui
+  if config.progress_win ~= false then
+    ui = require "obsidian-sync.ui"
+  end
 
   -- Bypass the paused→syncing HACK in obsidian.nvim's status module.
   -- It blocks the transition, so the icon stays "paused" forever.
@@ -120,6 +125,11 @@ function M.sync_once(dir, opts)
     status_mod.state.kind = "syncing"
     status_mod.state.icon = "󰑓"
     status_mod.state.need_update = true
+  end
+
+  -- Open floating progress window
+  if ui and not opts.silent then
+    ui.progress_win(cwd, string.format("Syncing %s...", vault_name), "comparing files...")
   end
 
   local handler = runner.make_handler(cwd)
@@ -135,6 +145,11 @@ function M.sync_once(dir, opts)
       if config.notify_events ~= false then
         vim.schedule(function()
           notify(string.format("%s synced", vault_name))
+        end)
+      end
+      if ui then
+        vim.schedule(function()
+          ui.close_progress(cwd, "synced")
         end)
       end
       return
@@ -158,6 +173,11 @@ function M.sync_once(dir, opts)
       string.format("rclone bisync exited with code %s: %s", out.code, vim.trim(out.stderr or "")),
       { error = true }
     )
+    if ui then
+      vim.schedule(function()
+        ui.close_progress(cwd, "error")
+      end)
+    end
   end
 
   running[cwd] = rclone.run_async(args, { cwd = cwd, handler = handler }, on_exit)

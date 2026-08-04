@@ -112,6 +112,16 @@ function M.sync_once(dir, opts)
   end
 
   local runner = require "obsidian.sync.runner"
+  local status_mod = require "obsidian.sync.status"
+
+  -- Bypass the paused→syncing HACK in obsidian.nvim's status module.
+  -- It blocks the transition, so the icon stays "paused" forever.
+  if status_mod.state.kind == "paused" then
+    status_mod.state.kind = "syncing"
+    status_mod.state.icon = "󰑓"
+    status_mod.state.need_update = true
+  end
+
   local handler = runner.make_handler(cwd)
   local args = rclone.bisync_args(cwd, remote, config.bisync)
   local resynced = false

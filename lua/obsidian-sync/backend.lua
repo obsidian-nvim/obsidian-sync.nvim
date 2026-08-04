@@ -100,9 +100,8 @@ function M.sync_once(dir, opts)
   end
 
   if running[cwd] then
-    if not opts.silent then
-      notify(string.format("Sync already running for %s", dir))
-    end
+    -- Skip silently: on_write debounce beats the 15s bisync window; the
+    -- running sync already includes the latest changes.
     return
   end
 
@@ -124,7 +123,9 @@ function M.sync_once(dir, opts)
       initialized[cwd] = true
       runner.append_log(cwd, "Fully synced")
       if config.notify_events ~= false then
-        notify(string.format("%s synced (%s)", vault_name, vim.fn.strftime("%H:%M:%S")))
+        vim.schedule(function()
+          notify(string.format("%s synced", vault_name))
+        end)
       end
       return
     end

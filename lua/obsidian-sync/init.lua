@@ -23,6 +23,7 @@ local DEFAULT = {
   check_interval = 300, -- seconds between continuous syncs
   auto_resync = true, -- retry once with --resync if bisync demands it
   safe_resync = true, -- log a friendly notice instead of ERROR on first --resync
+  notify_events = true, -- vim.notify on sync start / complete / error
   trigger = "manual", -- "on_write" | "continuous" | "manual" (overrides obsidian.nvim's sync.trigger)
   bisync = { exclude = { ".DS_Store", "*.bisync*", ".bisync/**" }, args = {} },
 }

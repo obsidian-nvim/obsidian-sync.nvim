@@ -25,6 +25,7 @@ local config = {
   check_interval = 300,
   auto_resync = true,
   safe_resync = true, -- warn before --resync (disables auto-retry warning)
+  notify_events = true, -- show vim.notify on sync start / complete / error
   bisync = { exclude = {}, args = {} },
   persist = nil,
 }
@@ -105,6 +106,12 @@ function M.sync_once(dir, opts)
     return
   end
 
+  -- Notify sync start (appears in Noice / statusline)
+  local vault_name = vim.fn.fnamemodify(cwd, ":t")
+  if config.notify_events ~= false then
+    notify(string.format("Syncing %s...", vault_name))
+  end
+
   local runner = require "obsidian.sync.runner"
   local handler = runner.make_handler(cwd)
   local args = rclone.bisync_args(cwd, remote, config.bisync)
@@ -116,6 +123,9 @@ function M.sync_once(dir, opts)
     if out.code == 0 then
       initialized[cwd] = true
       runner.append_log(cwd, "Fully synced")
+      if config.notify_events ~= false then
+        notify(string.format("%s synced (%s)", vault_name, vim.fn.strftime("%H:%M:%S")))
+      end
       return
     end
 

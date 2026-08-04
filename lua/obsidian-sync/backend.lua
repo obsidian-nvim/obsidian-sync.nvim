@@ -40,11 +40,7 @@ local running = {}
 ---@type table<string, boolean>
 local initialized = {}
 
-function M.configure(cfg)
-  config = vim.tbl_deep_extend("force", config, cfg or {})
-end
-
--- ── helpers ──────────────────────────────────────────────────────────────
+-- ── helpers (must be defined before M.configure) ───────────────────────
 
 local function norm(dir)
   return vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
@@ -56,6 +52,18 @@ end
 
 local function notify(msg, level)
   vim.notify("[obsidian-sync] " .. msg, level or vim.log.levels.INFO)
+end
+
+function M.configure(cfg)
+  config = vim.tbl_deep_extend("force", config, cfg or {})
+  -- Normalise remote keys so lookups match regardless of path representation.
+  if cfg.remotes then
+    local normalized = {}
+    for root, remote in pairs(config.remotes) do
+      normalized[norm(root)] = remote
+    end
+    config.remotes = normalized
+  end
 end
 
 ---Cross-platform rclone binary detection.

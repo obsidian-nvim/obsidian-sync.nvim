@@ -10,13 +10,15 @@ if vim.fn.isdirectory(mini_test_dir) == 0 then
   vim.fn.system { "git", "clone", "--filter=blob:none", "https://github.com/echasnovski/mini.test", mini_test_dir }
 end
 
--- Plugin paths
-local obsidian_nvim = "/Users/acidsugarx/CODES/h/obsidian.nvim"
-local plugin_dir = cwd
+-- obsidian.nvim: try CI path (cloned by workflow), fall back to local checkout
+local obsidian_path = cwd .. "/deps/obsidian.nvim"
+if vim.fn.isdirectory(obsidian_path) == 0 then
+  obsidian_path = "/Users/acidsugarx/CODES/h/obsidian.nvim"
+end
 
 vim.opt.runtimepath:prepend(mini_test_dir)
-vim.opt.runtimepath:prepend(obsidian_nvim)
-vim.opt.runtimepath:prepend(plugin_dir)
+vim.opt.runtimepath:prepend(obsidian_path)
+vim.opt.runtimepath:prepend(cwd)
 
 -- Minimal Neovim settings
 vim.cmd [[set rtp+=.]]

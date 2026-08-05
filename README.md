@@ -94,10 +94,10 @@ Standard Neovim health check (auto-discovered from `health.lua`).
 
 | Doc | Content |
 |---|---|
-| [[docs/Sync]] | Full sync reference: triggers, options, conflicts, quirks |
-| [[docs/Setup]] | Setup wizard walkthrough — WebDAV, existing remotes, local folders |
-| [[docs/Statusline]] | Drop-in integrations for lualine / heirline / mini / feline / windline |
-| [[docs/Backends]] | How to write a custom sync backend |
+| [Sync](docs/Sync.md) | Full sync reference: triggers, options, conflicts, quirks |
+| [Setup](docs/Setup.md) | Setup wizard walkthrough — WebDAV, existing remotes, local folders |
+| [Statusline](docs/Statusline.md) | Drop-in integrations for lualine / heirline / mini / feline / windline |
+| [Backends](docs/Backends.md) | How to write a custom sync backend |
 
 ## ⚙️ Options
 

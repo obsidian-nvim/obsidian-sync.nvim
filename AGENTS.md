@@ -34,6 +34,12 @@ nvim --headless --clean -u scripts/smoke.lua
 
 `deps/` is gitignored — `make test` bootstraps it on first run.
 
+**Before committing**, run:
+
+```
+make chores   # style + lint + types + test — all must pass
+```
+
 ## CI (GitHub Actions)
 
 Three workflows on PR and push to main:

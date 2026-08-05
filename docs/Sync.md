@@ -23,7 +23,7 @@ Shortcut — jumps to the wizard if no vault is configured, to the menu otherwis
 
 ### `:Obsidian sync setup`
 
-Setup wizard (see [[docs/Setup]]). Three flows:
+Setup wizard (see [Setup](Setup.md)). Three flows:
 
 1. **WebDAV / Nextcloud** — enter URL + username + password; the plugin creates an rclone remote via `rclone config create ... webdav --obscure`.
 2. **Existing rclone remote** — pick from `rclone listremotes`.
@@ -81,7 +81,7 @@ A `Sync` icon is available in the right section of your statusline (only in mark
 | `󰅙` | Error | `DiagnosticError` |
 | `󰏤` | Paused | `DiagnosticInfo` |
 
-Integrations are drop-in — see [[docs/Statusline]].
+Integrations are drop-in — see [Statusline](Statusline.md).
 
 ## Progress window
 
@@ -107,18 +107,20 @@ On completion it briefly flashes `󰸞 Synced` (green) / `󰅙 Error` (red) and 
 ## Options
 
 ```lua
----@class obsidian-sync.config
+---@class obsidian-sync.Config
 ---@field remotes? table<string,string> vault root → rclone target
 ---@field check_interval? integer seconds between continuous syncs
+---@field trigger? string "manual"|"on_write"|"continuous"
 ---@field auto_resync? boolean retry with --resync on first connect
 ---@field safe_resync? boolean log a friendly notice on --resync
 ---@field notify_events? boolean vim.notify on sync start / complete
 ---@field progress_win? boolean floating spinner window during sync
----@field bisync? { exclude?: string[], args?: string[] }
+---@field bisync? obsidian-sync.Config.Bisync
 
 require("obsidian-sync").setup {
   remotes = {},
   check_interval = 300,
+  trigger = "manual",
   auto_resync = true,
   safe_resync = true,
   notify_events = true,

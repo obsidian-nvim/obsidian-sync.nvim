@@ -34,6 +34,16 @@ nvim --headless --clean -u scripts/smoke.lua
 
 `deps/` is gitignored — `make test` bootstraps it on first run.
 
+## CI (GitHub Actions)
+
+Three workflows on PR and push to main:
+
+| Workflow | File | What it does |
+|---|---|---|
+| Linting | `.github/workflows/lint.yml` | selene (lint) + stylua --check (style) |
+| Tests | `.github/workflows/test.yml` | mini.test on ubuntu (v0.10, v0.11, nightly), macos (v0.11), windows (v0.11) — installs rclone |
+| Types | `.github/workflows/types.yml` | emmylua_check via Rust toolchain |
+
 ## Project structure
 
 ```

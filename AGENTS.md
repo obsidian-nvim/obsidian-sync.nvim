@@ -102,7 +102,8 @@ Every public function MUST carry `---@param` and `---@return` annotations. Use `
 
 - `.stylua.toml` — 2-space indent, double quotes, no call parens, 120 cols
 - `.luarc.json` — LLS: LuaJIT runtime, `$VIMRUNTIME/lua/` + `./lua/`, globals `vim`/`MiniTest`/`Obsidian`
-- `.emmyrc.json` — emmylua_check: LuaJIT, strict typeCall + arrayIndex, `$VIMRUNTIME` library
+- `.emmyrc.json` — emmylua_check: LuaJIT, strict typeCall + arrayIndex, `$VIMRUNTIME` + `.emmy/` library
+- `.emmy/lua/` — stub type definitions for obsidian.nvim modules and vim.uv (needed because emmylua_check runs without obsidian.nvim on the runtimepath)
 - `selene/config.toml` — lint reference `selene/globals.toml` (v51 base, permits globals `vim`/`bit`/`jit`/`Obsidian`/`MiniTest`)
 
 ## Pitfalls

@@ -7,14 +7,6 @@
 ---as the desktop "Remotely Save" plugin, without the desktop app.
 ---
 ---Works on macOS, Linux, and Windows (rclone is fully cross-platform).
----
----Usage:
----  { "obsidian-nvim/obsidian.nvim", lazy = true, opts = { sync = { enabled = true, backend = "rclone" } } },
----  require("obsidian-sync").setup {
----    remotes = { ["/path/to/vault"] = "my-webdav:" },
----    trigger = "on_write",
----    safe_resync = true,
----  }
 
 ---@class obsidian-sync.Config.Bisync
 ---@field exclude string[] globs to exclude from bisync
@@ -33,13 +25,13 @@
 local M = {}
 
 local DEFAULT = {
-  remotes = {}, -- vault root → "remote:path" (or an absolute local path)
-  check_interval = 300, -- seconds between continuous syncs
-  auto_resync = true, -- retry once with --resync if bisync demands it
-  safe_resync = true, -- log a friendly notice instead of ERROR on first --resync
-  notify_events = true, -- vim.notify on sync start / complete / error
-  progress_win = true, -- floating spinner window while syncing
-  trigger = "manual", -- "on_write" | "continuous" | "manual" (overrides obsidian.nvim's sync.trigger)
+  remotes = {},
+  check_interval = 300,
+  auto_resync = true,
+  safe_resync = true,
+  notify_events = true,
+  progress_win = true,
+  trigger = "manual",
   bisync = { exclude = { ".DS_Store", "*.bisync*", ".bisync/**" }, args = {} },
 }
 
@@ -56,7 +48,9 @@ end
 ---@param dir string
 ---@return string
 local function norm(dir)
-  return vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
+  ---@type string
+  local n = vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
+  return n
 end
 
 ---Load persisted config from disk.
@@ -81,7 +75,6 @@ end
 ---@param cfg obsidian-sync.Config
 local function persist(cfg)
   config = cfg
-  -- Strip non-serializable keys (function references) before encoding.
   local saved = {}
   for k, v in pairs(config) do
     if type(v) == "function" then
@@ -90,7 +83,6 @@ local function persist(cfg)
     end
   end
   local ok, encoded = pcall(vim.fn.json_encode, config)
-  -- Restore stripped keys.
   for k, v in pairs(saved) do
     config[k] = v
   end
@@ -108,7 +100,6 @@ function M.setup(opts)
   local loaded = load()
   config = vim.tbl_deep_extend("force", vim.deepcopy(DEFAULT), loaded, opts)
 
-  -- Normalize remote keys to canonical absolute paths.
   local normalized = {}
   for root, remote in pairs(config.remotes) do
     normalized[norm(root)] = remote
@@ -121,6 +112,7 @@ function M.setup(opts)
   if rclone_bin and rclone_bin ~= "" then
     require("obsidian-sync.rclone").bin = rclone_bin
   elseif vim.fn.has "win32" == 1 then
+    ---@type string
     for _, p in ipairs { "C:\\rclone\\rclone.exe", vim.fn.expand "~/rclone/rclone.exe" } do
       if vim.fn.executable(p) == 1 then
         require("obsidian-sync.rclone").bin = p
@@ -151,15 +143,11 @@ function M.setup(opts)
   end
 
   -- First-run: auto-offer setup wizard if no vaults are linked yet.
-  -- Uses a one-shot VimEnter autocmd so we don't block startup.
-  -- First-run wizard: fires when obsidian is loaded and no vaults are linked.
-  -- With lazy ft='markdown', this may be deferred until the first .md buffer.
   if vim.tbl_isempty(config.remotes) then
     local function offer_wizard()
       if not Obsidian then
         return
-      end -- obsidian hasn't loaded yet, skip
-      -- Only offer the wizard when we're actually inside an Obsidian vault.
+      end
       if vim.fn.isdirectory ".obsidian" == 0 then
         return
       end
@@ -170,7 +158,6 @@ function M.setup(opts)
         vim.notify("[obsidian-sync] Run :ObsidianSync or :Obsidian sync setup later.", vim.log.levels.INFO)
       end
     end
-    -- Try early; also listen for obsidian workspace init as fallback.
     vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = offer_wizard })
     vim.api.nvim_create_autocmd("User", {
       pattern = "ObsidianWorkpspaceSet",
@@ -198,7 +185,6 @@ vim.api.nvim_create_user_command("ObsidianSync", function()
     vim.notify("[obsidian-sync] obsidian.nvim not found.", vim.log.levels.ERROR)
     return
   end
-  -- If any vault already configured, show the menu; otherwise jump to wizard.
   local has = false
   for _, ws in ipairs(Obsidian.workspaces or {}) do
     if sync.is_configured(ws) then
@@ -215,8 +201,6 @@ end, { desc = "obsidian-sync: open sync menu or setup wizard" })
 
 -- ── checkhealth ─────────────────────────────────────────────────────────
 
----@module "obsidian"
-
 ---Run inline health checks for :ObsidianSyncHealth.
 local function health()
   local start = vim.health.start or vim.health.report_start
@@ -226,7 +210,6 @@ local function health()
 
   start "obsidian-sync"
 
-  -- rclone binary
   local rclone_bin = vim.fn.exepath "rclone"
   if rclone_bin and rclone_bin ~= "" then
     ok("rclone found: " .. rclone_bin)
@@ -234,7 +217,6 @@ local function health()
     err "rclone not found on PATH. Install from https://rclone.org/install/"
   end
 
-  -- obsidian.nvim
   local has_obs, _ = pcall(require, "obsidian.sync")
   if has_obs then
     ok "obsidian.nvim found"
@@ -242,7 +224,6 @@ local function health()
     err "obsidian.nvim not on runtimepath"
   end
 
-  -- configured remotes
   local remotes = config and config.remotes or {}
   if vim.tbl_isempty(remotes) then
     warn "No vaults linked. Run :ObsidianSync to set up."

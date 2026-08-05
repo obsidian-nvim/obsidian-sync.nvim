@@ -32,17 +32,7 @@ local M = {
 
 -- ── state ────────────────────────────────────────────────────────────────
 
----@class obsidian-sync.Backend.Config
----@field remotes table<string,string> vault root → remote target
----@field check_interval integer
----@field auto_resync boolean
----@field safe_resync boolean
----@field notify_events boolean
----@field progress_win boolean
----@field bisync { exclude: string[], args: string[] }
----@field persist (fun(cfg: obsidian-sync.Config)|nil)
-
----@type obsidian-sync.Backend.Config
+---@type obsidian-sync.Config
 local config = {
   remotes = {},
   check_interval = 300,
@@ -69,7 +59,9 @@ local initialized = {}
 ---@param dir string
 ---@return string
 local function norm(dir)
-  return vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
+  ---@type string
+  local n = vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
+  return n
 end
 
 ---Look up the configured remote for a vault root.
@@ -109,6 +101,7 @@ local function rclone_bin()
   end
   -- Windows: check common install paths
   if vim.fn.has "win32" == 1 then
+    ---@type string
     for _, p in ipairs { "C:\\rclone\\rclone.exe", vim.fn.expand "~/rclone/rclone.exe" } do
       if vim.fn.executable(p) == 1 then
         return p
@@ -177,8 +170,7 @@ function M.sync_once(dir, opts)
   local args = rclone.bisync_args(cwd, remote, config.bisync)
   local resynced = false
 
-  local on_exit
-  on_exit = function(out)
+  local on_exit = function(out)
     running[cwd] = nil
     if out.code == 0 then
       initialized[cwd] = true
@@ -503,6 +495,7 @@ local function local_flow(ws, dir)
   if not p or p == "" then
     return
   end
+  ---@type string
   p = vim.fn.simplify(vim.fn.expand(p))
   if vim.fn.isdirectory(p) == 0 then
     if api.confirm("Folder does not exist: " .. p .. ". Create it?") == "Yes" then

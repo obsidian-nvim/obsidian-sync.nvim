@@ -2,25 +2,19 @@
 
 ---@class uv.uv_timer_t
 local Timer = {}
-
 ---@param timeout integer
----@param repeat integer
+---@param repeat_ integer
 ---@param callback fun()
----@return integer 0 on success
 function Timer:start(timeout, repeat_, callback) end
-
----@return integer
 function Timer:stop() end
-
 function Timer:close() end
 
-local M = {}
+---@type table<string, fun(...)>
+vim.uv = {}
 
 ---@return uv.uv_timer_t
-function M.new_timer() end
+function vim.uv.new_timer() end
 
 ---@param path string
 ---@return string|nil
-function M.fs_realpath(path) end
-
-return M
+function vim.uv.fs_realpath(path) end

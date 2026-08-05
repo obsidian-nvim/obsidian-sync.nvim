@@ -1,0 +1,31 @@
+{
+  "runtime": {
+    "version": "LuaJIT",
+    "requirePattern": [
+      "?.lua",
+      "?/init.lua",
+      "lua/?.lua",
+      "lua/?/init.lua",
+      "?/lua/?.lua",
+      "?/lua/?/init.lua"
+    ]
+  },
+  "diagnostics": {
+    "disable": [
+      "unnecessary-if"
+    ]
+  },
+  "strict": {
+    "typeCall": true,
+    "arrayIndex": true
+  },
+  "workspace": {
+    "checkThirdParty": false,
+    "library": [
+      "$VIMRUNTIME"
+    ],
+    "ignoreGlobs": [
+      "tests/test_*.lua"
+    ]
+  }
+}

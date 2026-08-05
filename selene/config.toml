@@ -1,0 +1,5 @@
+std = "selene/globals"
+
+[lints]
+mixed_table = "allow"
+global_usage = "allow"

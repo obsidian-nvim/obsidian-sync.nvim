@@ -1,0 +1,7 @@
+{
+  "runtime.version": "LuaJIT",
+  "diagnostics.libraryFiles": "Disable",
+  "workspace.checkThirdParty": "Disable",
+  "workspace.library": ["$VIMRUNTIME/lua/", "./lua/"],
+  "diagnostics.globals": ["vim", "MiniTest", "Obsidian"]
+}

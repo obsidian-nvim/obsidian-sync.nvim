@@ -26,6 +26,10 @@ vim.o.swapfile = false
 vim.bo.swapfile = false
 vim.o.swapfile = false
 
+-- Ensure stdpath directories exist (--clean doesn't create them)
+vim.fn.mkdir(vim.fn.stdpath "data", "p")
+vim.fn.mkdir(vim.fn.stdpath "config", "p")
+
 -- Load mini.test
 local MiniTest = require "mini.test"
 MiniTest.setup()

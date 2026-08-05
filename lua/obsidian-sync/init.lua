@@ -48,9 +48,11 @@ end
 ---@param dir string
 ---@return string
 local function norm(dir)
-  ---@type string
-  local n = vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
-  return n
+  local real = vim.uv.fs_realpath(tostring(dir))
+  if real then
+    return real
+  end
+  return vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
 end
 
 ---Load persisted config from disk.
@@ -112,8 +114,8 @@ function M.setup(opts)
   if rclone_bin and rclone_bin ~= "" then
     require("obsidian-sync.rclone").bin = rclone_bin
   elseif vim.fn.has "win32" == 1 then
-    ---@type string
     for _, p in ipairs { "C:\\rclone\\rclone.exe", vim.fn.expand "~/rclone/rclone.exe" } do
+      ---@diagnostic disable-next-line: param-type-mismatch
       if vim.fn.executable(p) == 1 then
         require("obsidian-sync.rclone").bin = p
         break

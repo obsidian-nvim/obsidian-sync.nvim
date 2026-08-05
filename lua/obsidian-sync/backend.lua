@@ -37,9 +37,10 @@ local config = {
   remotes = {},
   check_interval = 300,
   auto_resync = true,
-  safe_resync = true, -- warn before --resync (disables auto-retry warning)
-  notify_events = true, -- show vim.notify on sync start / complete / error
-  progress_win = true, -- show floating progress window while syncing
+  safe_resync = true,
+  notify_events = true,
+  progress_win = true,
+  trigger = "manual",
   bisync = { exclude = {}, args = {} },
   persist = nil,
 }
@@ -59,9 +60,11 @@ local initialized = {}
 ---@param dir string
 ---@return string
 local function norm(dir)
-  ---@type string
-  local n = vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
-  return n
+  local real = vim.uv.fs_realpath(tostring(dir))
+  if real then
+    return real
+  end
+  return vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
 end
 
 ---Look up the configured remote for a vault root.
@@ -101,8 +104,8 @@ local function rclone_bin()
   end
   -- Windows: check common install paths
   if vim.fn.has "win32" == 1 then
-    ---@type string
     for _, p in ipairs { "C:\\rclone\\rclone.exe", vim.fn.expand "~/rclone/rclone.exe" } do
+      ---@diagnostic disable-next-line: param-type-mismatch
       if vim.fn.executable(p) == 1 then
         return p
       end
@@ -495,7 +498,7 @@ local function local_flow(ws, dir)
   if not p or p == "" then
     return
   end
-  ---@type string
+  ---@diagnostic disable-next-line: param-type-mismatch
   p = vim.fn.simplify(vim.fn.expand(p))
   if vim.fn.isdirectory(p) == 0 then
     if api.confirm("Folder does not exist: " .. p .. ". Create it?") == "Yes" then

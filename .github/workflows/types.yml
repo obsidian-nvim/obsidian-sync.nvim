@@ -32,8 +32,6 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
-
       - name: Install EmmyLua checker
         run: cargo install emmylua_check --version 0.23.2 --locked
 

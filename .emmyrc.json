@@ -23,6 +23,8 @@
     "checkThirdParty": false,
     "library": [
       "$VIMRUNTIME",
+      "deps/obsidian.nvim/lua",
+      "deps/obsidian.nvim/.emmy",
       ".emmy"
     ],
     "ignoreGlobs": [

@@ -25,6 +25,10 @@ jobs:
           neovim: true
           version: v0.11.4
 
+      - name: Clone obsidian.nvim (for type resolution)
+        run: |
+          git clone --depth 1 https://github.com/obsidian-nvim/obsidian.nvim.git deps/obsidian.nvim
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 

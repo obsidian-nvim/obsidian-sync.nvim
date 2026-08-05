@@ -1,24 +1,27 @@
---- Pretty UI for obsidian-sync: floating progress window and status display.
+---Pretty UI for obsidian-sync: floating progress window and status display.
 ---
----     require("obsidian-sync.ui").progress_win(dir, "Syncing SECOND_BRAIN...")
----     require("obsidian-sync.ui").close_progress(dir)
+---    require("obsidian-sync.ui").progress_win(dir, "Syncing SECOND_BRAIN...")
+---    require("obsidian-sync.ui").close_progress(dir)
 ---
---- The progress window is auto-managed; it shows a spinner while syncing
---- and briefly flips to a checkmark / error icon before closing.
+---The progress window is auto-managed; it shows a spinner while syncing
+---and briefly flips to a checkmark / error icon before closing.
 
 local M = {}
 
 ---@class obsidian-sync.ui.ProgressWin
----@field buf integer
----@field win integer
----@field timer uv.uv_timer_t|nil
----@field frame integer
+---@field buf integer buffer handle
+---@field win integer window handle
+---@field timer uv.uv_timer_t|nil spinner animation timer
+---@field frame integer current animation frame index
+---@field detail string|nil current detail line text
 
 ---@type table<string, obsidian-sync.ui.ProgressWin>
 local wins = {}
 
 local spinner_frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
+---Create a scratch buffer for the progress window.
+---@return integer buf buffer handle
 local function make_buf()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "nofile"
@@ -27,6 +30,10 @@ local function make_buf()
   return buf
 end
 
+---Create a floating window for progress display.
+---@param buf integer buffer handle
+---@param title string window title
+---@return integer win window handle
 local function make_win(buf, title)
   local width = math.min(60, vim.o.columns - 4)
   local height = 3
@@ -50,6 +57,9 @@ local function make_win(buf, title)
   return win
 end
 
+---Update the buffer lines of a progress window.
+---@param buf integer buffer handle
+---@param lines string[] lines to display
 local function update(buf, lines)
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -81,18 +91,22 @@ function M.progress_win(dir, title, detail)
 
   -- Spinner timer
   w.timer = vim.uv.new_timer()
-  w.timer:start(0, 100, vim.schedule_wrap(function()
-    if not wins[dir] then
-      return
-    end
-    local frame = spinner_frames[(w.frame % #spinner_frames) + 1]
-    update(buf, {
-      string.format(" %s  %s", frame, title),
-      "",
-      " " .. (w.detail or "syncing..."),
-    })
-    w.frame = w.frame + 1
-  end))
+  w.timer:start(
+    0,
+    100,
+    vim.schedule_wrap(function()
+      if not wins[dir] then
+        return
+      end
+      local frame = spinner_frames[(w.frame % #spinner_frames) + 1]
+      update(buf, {
+        string.format(" %s  %s", frame, title),
+        "",
+        " " .. (w.detail or "syncing..."),
+      })
+      w.frame = w.frame + 1
+    end)
+  )
 
   -- Close on <Esc>
   vim.keymap.set("n", "<Esc>", function()

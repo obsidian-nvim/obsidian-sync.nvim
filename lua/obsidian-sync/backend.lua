@@ -1,17 +1,30 @@
---- rclone backend for obsidian.nvim's sync module — WebDAV / S3 / local two-way sync.
+---rclone backend for obsidian.nvim's sync module — WebDAV / S3 / local two-way sync.
 ---
---- Implements the `obsidian.sync.Backend` contract (see
---- `lua/obsidian/sync/init.lua` in obsidian.nvim) so it plugs into the
---- existing `:Obsidian sync` menu, `on_write` trigger, continuous mode,
---- log buffer and statusline component with zero changes to obsidian.nvim.
+---Implements the `obsidian.sync.Backend` contract (see
+---`lua/obsidian/sync/init.lua` in obsidian.nvim) so it plugs into the
+---existing `:Obsidian sync` menu, `on_write` trigger, continuous mode,
+---log buffer and statusline component with zero changes to obsidian.nvim.
 ---
---- Wizard supports three flows:
----   1. WebDAV / Nextcloud — enter URL + credentials, rclone remote auto-created
----   2. Existing rclone remote — pick from `rclone listremotes`
----   3. Local folder — two-way sync between two directories (test mode)
+---Wizard supports three flows:
+---  1. WebDAV / Nextcloud — enter URL + credentials, rclone remote auto-created
+---  2. Existing rclone remote — pick from `rclone listremotes`
+---  3. Local folder — two-way sync between two directories (test mode)
 
 local rclone = require "obsidian-sync.rclone"
 
+---@class obsidian-sync.Backend : obsidian.sync.Backend
+---@field name string "rclone"
+---@field caps table<string,boolean> capability flags
+---@field configure fun(cfg: obsidian-sync.Config) apply configuration
+---@field persist fun(cfg: obsidian-sync.Config)|nil persist callback set by init.lua
+---@field is_configured fun(ws: table):boolean
+---@field sync_once fun(dir: string, opts?: table)
+---@field start fun(dir: string, opts?: table)
+---@field pause fun(dir: string): boolean
+---@field log fun(dir: string)
+---@field ws_formatter fun(ws: table): string
+---@field disconnect fun(ws: table)
+---@field setup fun(ws: table)
 local M = {
   name = "rclone",
   caps = { remote_catalog = false },
@@ -19,7 +32,17 @@ local M = {
 
 -- ── state ────────────────────────────────────────────────────────────────
 
----@type { remotes: table<string,string>, check_interval: integer, auto_resync: boolean, safe_resync: boolean, bisync: { exclude: string[], args: string[] }, persist: (fun(cfg: any)|nil) }
+---@class obsidian-sync.Backend.Config
+---@field remotes table<string,string> vault root → remote target
+---@field check_interval integer
+---@field auto_resync boolean
+---@field safe_resync boolean
+---@field notify_events boolean
+---@field progress_win boolean
+---@field bisync { exclude: string[], args: string[] }
+---@field persist (fun(cfg: obsidian-sync.Config)|nil)
+
+---@type obsidian-sync.Backend.Config
 local config = {
   remotes = {},
   check_interval = 300,
@@ -42,18 +65,29 @@ local initialized = {}
 
 -- ── helpers (must be defined before M.configure) ───────────────────────
 
+---Normalise a directory path to its canonical absolute form.
+---@param dir string
+---@return string
 local function norm(dir)
   return vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
 end
 
+---Look up the configured remote for a vault root.
+---@param dir string
+---@return string|nil
 local function remote_for(dir)
   return config.remotes[norm(dir)]
 end
 
+---Post a plugin-scoped notification.
+---@param msg string
+---@param level? integer vim.log.levels
 local function notify(msg, level)
   vim.notify("[obsidian-sync] " .. msg, level or vim.log.levels.INFO)
 end
 
+---Apply user config, normalising remote keys.
+---@param cfg obsidian-sync.Config
 function M.configure(cfg)
   config = vim.tbl_deep_extend("force", config, cfg or {})
   -- Normalise remote keys so lookups match regardless of path representation.
@@ -84,19 +118,18 @@ local function rclone_bin()
   return nil
 end
 
-local function has_rclone()
-  if rclone.bin ~= "rclone" and rclone.bin ~= "" then
-    return true
-  end
-  return rclone_bin() ~= nil
-end
-
 -- ── backend contract ─────────────────────────────────────────────────────
 
+---Check if a workspace has a remote configured.
+---@param ws obsidian.Workspace
+---@return boolean
 function M.is_configured(ws)
   return remote_for(tostring(ws.root)) ~= nil
 end
 
+---Run a single bisync for a vault.
+---@param dir string vault root
+---@param opts? { silent?: boolean }
 function M.sync_once(dir, opts)
   opts = opts or {}
   local cwd = norm(dir)
@@ -191,6 +224,9 @@ function M.sync_once(dir, opts)
   running[cwd] = rclone.run_async(args, { cwd = cwd, handler = handler }, on_exit)
 end
 
+---Start continuous sync (runs sync_once immediately, then on a timer).
+---@param dir string vault root
+---@param opts? { silent?: boolean }
 function M.start(dir, opts)
   opts = opts or {}
   local cwd = norm(dir)
@@ -207,23 +243,35 @@ function M.start(dir, opts)
   local interval_ms = math.max(10, config.check_interval) * 1000
   local t = assert(vim.uv.new_timer(), "failed to spawn timer")
   timers[cwd] = t
-  t:start(interval_ms, interval_ms, vim.schedule_wrap(function()
-    M.sync_once(cwd, { silent = true })
-  end))
+  t:start(
+    interval_ms,
+    interval_ms,
+    vim.schedule_wrap(function()
+      M.sync_once(cwd, { silent = true })
+    end)
+  )
 end
 
+---Pause sync for a vault (stop timer, kill running process).
+---@param dir string vault root
+---@return boolean
 function M.pause(dir)
   local cwd = norm(dir)
 
   local t = timers[cwd]
   if t then
-    pcall(function() t:stop(); t:close() end)
+    pcall(function()
+      t:stop()
+      t:close()
+    end)
     timers[cwd] = nil
   end
 
   local proc = running[cwd]
   if proc then
-    pcall(function() proc:kill(15) end)
+    pcall(function()
+      proc:kill(15)
+    end)
   end
 
   local runner = require "obsidian.sync.runner"
@@ -232,10 +280,15 @@ function M.pause(dir)
   return true
 end
 
+---Open the sync log buffer for a vault.
+---@param dir string vault root
 function M.log(dir)
   require("obsidian.sync.runner").open_log_buf(norm(dir))
 end
 
+---Format a workspace for display in the sync menu.
+---@param ws obsidian.Workspace
+---@return string
 function M.ws_formatter(ws)
   local root = tostring(ws.root)
   local remote = remote_for(root)
@@ -245,6 +298,8 @@ function M.ws_formatter(ws)
   return string.format("%s (%s)", ws.name, root)
 end
 
+---Unlink a workspace from sync (pause + remove mapping).
+---@param ws obsidian.Workspace
 function M.disconnect(ws)
   local dir = norm(tostring(ws.root))
   M.pause(dir)
@@ -257,6 +312,10 @@ end
 
 -- ── wizard: link helper ──────────────────────────────────────────────────
 
+---Persist a new vault→remote mapping and optionally start syncing.
+---@param ws obsidian.Workspace
+---@param dir string normalised vault root
+---@param target string rclone remote target
 local function link(ws, dir, target)
   config.remotes[dir] = target
   if config.persist then
@@ -277,7 +336,9 @@ end
 ---@return boolean success
 local function rclone_config_create(name, kv)
   local bin = rclone_bin()
-  if not bin then return false end
+  if not bin then
+    return false
+  end
 
   local args = { "config", "create", name, "webdav", "--non-interactive" }
   for k, v in pairs(kv) do
@@ -291,7 +352,7 @@ end
 
 ---Detect Nextcloud vendor by URL pattern.
 ---@param url string
----@return string "nextcloud"|"owncloud"|"other"
+---@return "nextcloud"|"owncloud"|"other"
 local function detect_vendor(url)
   if url:find "remote.php" or url:find "nextcloud" then
     return "nextcloud"
@@ -301,8 +362,9 @@ local function detect_vendor(url)
   return "other"
 end
 
+---WebDAV / Nextcloud setup wizard flow.
 ---@param ws obsidian.Workspace
----@param dir string
+---@param dir string normalised vault root
 local function webdav_flow(ws, dir)
   local api = require "obsidian.api"
 
@@ -310,9 +372,13 @@ local function webdav_flow(ws, dir)
   local picker = require "obsidian.picker"
   picker.select(vendor_items, {
     prompt = "Select WebDAV server type",
-    format_item = function(v) return v end,
+    format_item = function(v)
+      return v
+    end,
   }, function(choices)
-    if not choices[1] then return end
+    if not choices[1] then
+      return
+    end
     local is_nextcloud = choices[1] == vendor_items[1]
 
     local url = api.input "WebDAV URL (e.g. https://example.com/remote.php/dav/files/user/): "
@@ -322,7 +388,9 @@ local function webdav_flow(ws, dir)
     end
 
     local user = api.input "Username: "
-    if not user or user == "" then return end
+    if not user or user == "" then
+      return
+    end
 
     local pass = vim.fn.inputsecret "Password: "
     if not pass or pass == "" then
@@ -353,10 +421,12 @@ local function webdav_flow(ws, dir)
     notify("Remote '" .. remote_name .. "' created.")
 
     -- Ask for optional sub-path (e.g. vault folder inside WebDAV root)
-    local sub = api.input("Remote sub-path (e.g. vault/main, <CR> for root): ")
+    local sub = api.input "Remote sub-path (e.g. vault/main, <CR> for root): "
     sub = (sub or ""):gsub("^/+", ""):gsub("/+$", "")
     local target = remote_name .. ":"
-    if sub ~= "" then target = target .. sub end
+    if sub ~= "" then
+      target = target .. sub
+    end
 
     link(ws, dir, target)
   end)
@@ -364,16 +434,25 @@ end
 
 -- ── wizard: other flows ──────────────────────────────────────────────────
 
+---Prompt for a remote sub-path and link.
+---@param ws obsidian.Workspace
+---@param dir string normalised vault root
+---@param remote string rclone remote name (with colon)
 local function prompt_path(ws, dir, remote)
   local api = require "obsidian.api"
-  local sub = api.input("Remote path (e.g. vault/main, <CR> for root): ")
+  local sub = api.input "Remote path (e.g. vault/main, <CR> for root): "
   sub = (sub or ""):gsub("^/+", ""):gsub("/+$", "")
   local target = remote
-  if sub ~= "" then target = remote .. sub end
+  if sub ~= "" then
+    target = remote .. sub
+  end
   link(ws, dir, target)
 end
 
-local function run_rclone_config(ws, dir)
+---Open a terminal buffer running `rclone config`.
+---@param ws obsidian.Workspace
+---@param _dir string (unused — ws.root is sufficient)
+local function run_rclone_config(ws, _dir)
   vim.cmd "tabnew | terminal rclone config"
   vim.api.nvim_create_autocmd("TermClose", {
     once = true,
@@ -383,6 +462,9 @@ local function run_rclone_config(ws, dir)
   })
 end
 
+---Existing rclone remote picker flow.
+---@param ws obsidian.Workspace
+---@param dir string normalised vault root
 local function existing_flow(ws, dir)
   local picker = require "obsidian.picker"
   local api = require "obsidian.api"
@@ -402,7 +484,9 @@ local function existing_flow(ws, dir)
 
   picker.select(remotes, {
     prompt = "Select rclone remote",
-    format_item = function(r) return r end,
+    format_item = function(r)
+      return r
+    end,
   }, function(choices)
     if choices[1] then
       prompt_path(ws, dir, choices[1])
@@ -410,10 +494,15 @@ local function existing_flow(ws, dir)
   end)
 end
 
+---Local folder sync setup flow.
+---@param ws obsidian.Workspace
+---@param dir string normalised vault root
 local function local_flow(ws, dir)
   local api = require "obsidian.api"
   local p = api.input "Local folder to two-way sync with (absolute path): "
-  if not p or p == "" then return end
+  if not p or p == "" then
+    return
+  end
   p = vim.fn.simplify(vim.fn.expand(p))
   if vim.fn.isdirectory(p) == 0 then
     if api.confirm("Folder does not exist: " .. p .. ". Create it?") == "Yes" then
@@ -427,6 +516,8 @@ end
 
 -- ── wizard: main entry ───────────────────────────────────────────────────
 
+---Open the setup wizard for a workspace.
+---@param ws obsidian.Workspace
 function M.setup(ws)
   local dir = norm(tostring(ws.root))
   local picker = require "obsidian.picker"
@@ -438,10 +529,14 @@ function M.setup(ws)
 
   picker.select({ WEBDAV, EXISTING, RCLONE_CFG, LOCAL }, {
     prompt = "Configure rclone sync for " .. tostring(ws.name),
-    format_item = function(item) return item end,
+    format_item = function(item)
+      return item
+    end,
   }, function(choices)
     local choice = choices[1]
-    if not choice then return end
+    if not choice then
+      return
+    end
     if choice == WEBDAV then
       webdav_flow(ws, dir)
     elseif choice == EXISTING then
@@ -460,7 +555,10 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
   once = true,
   callback = function()
     for _, t in pairs(timers) do
-      pcall(function() t:stop(); t:close() end)
+      pcall(function()
+        t:stop()
+        t:close()
+      end)
     end
   end,
 })

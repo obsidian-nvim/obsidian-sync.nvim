@@ -24,7 +24,9 @@ T["rclone"]["bisync_args should produce correct argv"] = function()
   -- Count --exclude occurrences
   local n_exclude = 0
   for _, a in ipairs(args) do
-    if a == "--exclude" then n_exclude = n_exclude + 1 end
+    if a == "--exclude" then
+      n_exclude = n_exclude + 1
+    end
   end
   eq(2, n_exclude)
 
@@ -83,7 +85,7 @@ T["backend"]["ws_formatter shows remote name"] = function()
   b.configure { remotes = { [root] = "remote:x" } }
   local s = b.ws_formatter { name = "Test", root = root }
   eq("string", type(s))
-  eq(true, s:find("Test") ~= nil, "should contain vault name")
+  eq(true, s:find "Test" ~= nil, "should contain vault name")
 end
 
 T["backend"]["ws_formatter without remote"] = function()

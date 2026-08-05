@@ -13,16 +13,16 @@ M.bin = "rclone"
 
 ---@return string? rclone version line, nil if the binary is missing
 function M.available()
-  local out = vim.fn.system({ M.bin, "version" })
+  local out = vim.fn.system { M.bin, "version" }
   if vim.v.shell_error ~= 0 then
     return nil
   end
-  return vim.trim(out):match("^([^\n]*)")
+  return vim.trim(out):match "^([^\n]*)"
 end
 
 ---@return string[]? configured remote names (e.g. {"mys3:", "webdav:"}), nil on error
 function M.listremotes()
-  local out = vim.fn.systemlist({ M.bin, "listremotes" })
+  local out = vim.fn.systemlist { M.bin, "listremotes" }
   if vim.v.shell_error ~= 0 then
     return nil
   end
@@ -34,11 +34,7 @@ end
 ---@param on_exit fun(out: vim.SystemCompleted)
 ---@return vim.SystemObj
 function M.run_async(args, opts, on_exit)
-  return vim.system(
-    { M.bin, unpack(args) },
-    { cwd = opts.cwd, stdout = opts.handler, stderr = opts.handler },
-    on_exit
-  )
+  return vim.system({ M.bin, unpack(args) }, { cwd = opts.cwd, stdout = opts.handler, stderr = opts.handler }, on_exit)
 end
 
 ---Build the `rclone bisync` argv for a vault.

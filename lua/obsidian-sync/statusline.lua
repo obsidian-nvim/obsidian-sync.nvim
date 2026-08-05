@@ -1,4 +1,4 @@
---- Drop-in integrations for popular Neovim statusline plugins.
+---Drop-in integrations for popular Neovim statusline plugins.
 ---
 ---    require("obsidian-sync.statusline").lualine()
 ---    require("obsidian-sync.statusline").heirline()
@@ -7,10 +7,12 @@
 ---    require("obsidian-sync.statusline").windline()
 ---    require("obsidian-sync.statusline").plain()
 ---
---- The component auto-updates via `User ObsidianSyncChanged` autocmd.
+---The component auto-updates via `User ObsidianSyncChanged` autocmd.
 
 local M = {}
 
+---Resolve the sync status icon (Nerd Font glyph).
+---@return string
 local function get_icon()
   local ok, status = pcall(require, "obsidian.sync.status")
   if not ok then
@@ -26,6 +28,8 @@ local function get_icon()
   return defaults[kind] or ""
 end
 
+---Resolve the sync status highlight group colour.
+---@return string
 local function get_hl()
   local ok, status = pcall(require, "obsidian.sync.status")
   if not ok then
@@ -34,6 +38,7 @@ local function get_hl()
   return status.color()
 end
 
+---Whether the statusline component should be visible.
 ---@return boolean
 local function visible()
   return vim.bo.filetype == "markdown" and get_icon() ~= ""
@@ -41,6 +46,7 @@ end
 
 -- ── autocmd: force statusline redraw on sync status change ──────────────
 
+---Ensure the `User ObsidianSyncChanged` refresh autocmd is registered once.
 local function ensure_refresh_autocmd()
   if vim.g.obsidian_sync_statusline_autocmd_set then
     return
@@ -71,7 +77,8 @@ end
 
 -- ── lualine.nvim ─────────────────────────────────────────────────────────
 
----@return table lualine component spec
+---lualine.nvim component spec.
+---@return table { [1]: fun():string, color: fun():string, cond: fun():boolean, on_click: fun() }
 function M.lualine()
   ensure_refresh_autocmd()
   return {
@@ -90,6 +97,8 @@ end
 
 -- ── heirline.nvim ────────────────────────────────────────────────────────
 
+---heirline.nvim component spec.
+---@return table { provider: fun():string, hl: fun():table, update: table, on_click: table }
 function M.heirline()
   return {
     provider = function()
@@ -99,13 +108,18 @@ function M.heirline()
       return { fg = get_hl() }
     end,
     update = { "User", pattern = "ObsidianSyncChanged" },
-    on_click = { callback = function() vim.cmd "ObsidianSync" end },
+    on_click = {
+      callback = function()
+        vim.cmd "ObsidianSync"
+      end,
+    },
   }
 end
 
 -- ── mini.statusline ──────────────────────────────────────────────────────
 
----@return function provider function returning icon string
+---mini.statusline provider function.
+---@return fun():string provider function returning icon string
 function M.mini()
   return function()
     return get_icon()
@@ -114,6 +128,8 @@ end
 
 -- ── feline.nvim ──────────────────────────────────────────────────────────
 
+---feline.nvim component spec.
+---@return table { provider: fun():string, hl: { fg: string }, update: string[] }
 function M.feline()
   return {
     provider = function()
@@ -128,6 +144,8 @@ end
 
 -- ── windline.nvim ────────────────────────────────────────────────────────
 
+---windline.nvim component spec.
+---@return table { text: fun():string, hl_colors: { fg: string }, update: string[] }
 function M.windline()
   return {
     text = function()
@@ -140,6 +158,7 @@ end
 
 -- ── plain vim statusline (drop-in string) ────────────────────────────────
 
+---Fallback plain vim statusline component.
 ---@return string e.g. "%#ObsidianSyncSynced# 󰸞 %*"
 function M.plain()
   return require("obsidian.sync.status").component()

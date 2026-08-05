@@ -12,12 +12,12 @@ end
 T["defaults"] = new_set()
 
 T["defaults"]["setup registers rclone backend"] = function()
-  local state = vim.fn.stdpath("data") .. "/obsidian-sync.json"
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync.json"
   os.remove(state)
 
   require("obsidian-sync").setup { remotes = {}, check_interval = 120 }
 
-  local backend = require("obsidian.sync").get_backend()
+  local _backend = require("obsidian.sync").get_backend()
   -- get_backend reads Obsidian.opts.sync.backend — which is "obsidian" by
   -- default because obsidian.nvim hasn't been set up with user opts here.
   -- But our register("rclone", ...) should have stored "rclone".
@@ -32,7 +32,7 @@ end
 T["persistence"] = new_set()
 
 T["persistence"]["config round-trips through JSON"] = function()
-  local state = vim.fn.stdpath("data") .. "/obsidian-sync-test.json"
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync-test.json"
   os.remove(state)
 
   local test_config = {
@@ -64,7 +64,7 @@ T["normalisation"] = new_set()
 
 T["normalisation"]["handles trailing slash"] = function()
   local root = tmpdir()
-  local state = vim.fn.stdpath("data") .. "/obsidian-sync.json"
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync.json"
   os.remove(state)
 
   require("obsidian-sync").setup { remotes = { [root .. "/"] = "r:x" } }
@@ -75,7 +75,7 @@ end
 
 T["normalisation"]["consistent resolution"] = function()
   local root = tmpdir()
-  local state = vim.fn.stdpath("data") .. "/obsidian-sync.json"
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync.json"
   os.remove(state)
 
   require("obsidian-sync").setup { remotes = { [root] = "r:x" } }
@@ -90,11 +90,11 @@ T["commands"] = new_set()
 
 T["commands"]["ObsidianSync is defined"] = function()
   -- Command is created at module load time in init.lua
-  eq(2, vim.fn.exists(":ObsidianSync"))
+  eq(2, vim.fn.exists ":ObsidianSync")
 end
 
 T["commands"]["ObsidianSyncHealth is defined"] = function()
-  eq(2, vim.fn.exists(":ObsidianSyncHealth"))
+  eq(2, vim.fn.exists ":ObsidianSyncHealth")
 end
 
 return T

@@ -1,8 +1,10 @@
---- :checkhealth obsidian-sync
---- (Neovim auto-discovers this file at lua/obsidian-sync/health.lua)
+---:checkhealth obsidian-sync
+---(Neovim auto-discovers this file at lua/obsidian-sync/health.lua)
 
 local M = {}
 
+---Standard Neovim healthcheck entry point.
+---Called by :checkhealth obsidian-sync.
 function M.check()
   vim.health.start "obsidian-sync"
 
@@ -10,13 +12,13 @@ function M.check()
   if rclone_bin and rclone_bin ~= "" then
     vim.health.ok("rclone: " .. rclone_bin)
     -- Check version
-    local out = vim.fn.system({ rclone_bin, "version" })
-    local ver = vim.trim(out):match("rclone v([^\n]+)")
+    local out = vim.fn.system { rclone_bin, "version" }
+    local ver = vim.trim(out):match "rclone v([^\n]+)"
     if ver then
       vim.health.ok("  version: " .. ver)
     end
   else
-    vim.health.error("rclone not found on PATH.  Install from https://rclone.org/install/")
+    vim.health.error "rclone not found on PATH.  Install from https://rclone.org/install/"
   end
 
   local has_obs, _ = pcall(require, "obsidian.sync")
@@ -27,7 +29,7 @@ function M.check()
   end
 
   -- Remotes
-  local state_file = vim.fn.stdpath("data") .. "/obsidian-sync.json"
+  local state_file = vim.fn.stdpath "data" .. "/obsidian-sync.json"
   local remotes = {}
   if vim.fn.filereadable(state_file) == 1 then
     local ok, lines = pcall(vim.fn.readfile, state_file)
@@ -40,9 +42,9 @@ function M.check()
   end
 
   if vim.tbl_isempty(remotes) then
-    vim.health.warn("No vaults linked.  Run :ObsidianSync to set up.")
+    vim.health.warn "No vaults linked.  Run :ObsidianSync to set up."
   else
-    vim.health.ok("Linked vaults:")
+    vim.health.ok "Linked vaults:"
     for vault, remote in pairs(remotes) do
       vim.health.ok(string.format("  %s → %s", vault, remote))
     end

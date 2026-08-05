@@ -1,20 +1,34 @@
---- obsidian-sync.nvim — bidirectional Obsidian vault sync backed by rclone.
+---obsidian-sync.nvim — bidirectional Obsidian vault sync backed by rclone.
 ---
---- Registers a "rclone" backend into obsidian.nvim's sync module so the
---- existing `:Obsidian sync` menu, `on_write` trigger, continuous mode,
---- log buffer and statusline all work with WebDAV / Nextcloud / S3 / Dropbox
---- / Google Drive / SFTP / SMB / local folders — i.e. the same feature set
---- as the desktop "Remotely Save" plugin, without the desktop app.
+---Registers a "rclone" backend into obsidian.nvim's sync module so the
+---existing `:Obsidian sync` menu, `on_write` trigger, continuous mode,
+---log buffer and statusline all work with WebDAV / Nextcloud / S3 / Dropbox
+---/ Google Drive / SFTP / SMB / local folders — i.e. the same feature set
+---as the desktop "Remotely Save" plugin, without the desktop app.
 ---
---- Works on macOS, Linux, and Windows (rclone is fully cross-platform).
+---Works on macOS, Linux, and Windows (rclone is fully cross-platform).
 ---
---- Usage:
----   { "obsidian-nvim/obsidian.nvim", lazy = true, opts = { sync = { enabled = true, backend = "rclone" } } },
----   require("obsidian-sync").setup {
----     remotes = { ["/path/to/vault"] = "my-webdav:" },
----     trigger = "on_write",
----     safe_resync = true,
----   }
+---Usage:
+---  { "obsidian-nvim/obsidian.nvim", lazy = true, opts = { sync = { enabled = true, backend = "rclone" } } },
+---  require("obsidian-sync").setup {
+---    remotes = { ["/path/to/vault"] = "my-webdav:" },
+---    trigger = "on_write",
+---    safe_resync = true,
+---  }
+
+---@class obsidian-sync.Config.Bisync
+---@field exclude string[] globs to exclude from bisync
+---@field args string[] extra rclone bisync flags
+
+---@class obsidian-sync.Config
+---@field remotes table<string,string> vault root → remote target (rclone remote:path or local dir)
+---@field check_interval integer seconds between continuous syncs (default 300)
+---@field auto_resync boolean retry once with --resync if bisync demands it
+---@field safe_resync boolean log a friendly notice instead of ERROR on first --resync
+---@field notify_events boolean vim.notify on sync start / complete / error
+---@field progress_win boolean floating spinner window while syncing
+---@field trigger string "manual"|"on_write"|"continuous"
+---@field bisync obsidian-sync.Config.Bisync
 
 local M = {}
 
@@ -29,16 +43,24 @@ local DEFAULT = {
   bisync = { exclude = { ".DS_Store", "*.bisync*", ".bisync/**" }, args = {} },
 }
 
+---@type obsidian-sync.Config
 local config
 
+---Return the persistent state JSON file path.
+---@return string
 local function state_file()
-  return vim.fn.stdpath("data") .. "/obsidian-sync.json"
+  return vim.fn.stdpath "data" .. "/obsidian-sync.json"
 end
 
+---Normalise a directory path to its canonical absolute form.
+---@param dir string
+---@return string
 local function norm(dir)
   return vim.uv.fs_realpath(tostring(dir)) or vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
 end
 
+---Load persisted config from disk.
+---@return table
 local function load()
   local file = state_file()
   if vim.fn.filereadable(file) == 0 then
@@ -55,6 +77,8 @@ local function load()
   return decoded
 end
 
+---Persist config to disk, stripping non-serialisable keys (functions).
+---@param cfg obsidian-sync.Config
 local function persist(cfg)
   config = cfg
   -- Strip non-serializable keys (function references) before encoding.
@@ -77,7 +101,7 @@ local function persist(cfg)
 end
 
 ---Configure the plugin and register the backend with obsidian.nvim.
----@param opts? obsidian-sync.config
+---@param opts? obsidian-sync.Config
 function M.setup(opts)
   opts = opts or {}
 
@@ -120,9 +144,10 @@ function M.setup(opts)
   end
   sync.register("rclone", backend)
 
-  -- Apply trigger preference (auto-enables on_write if requested)
-  if config.trigger == "on_write" and obsidian and obsidian.opts and obsidian.opts.sync then
-    obsidian.opts.sync.trigger = "on_write"
+  -- Apply trigger preference (auto-enables on_write if requested).
+  -- `obsidian` is a global module loaded by obsidian.nvim.
+  if config.trigger == "on_write" and _G.obsidian and _G.obsidian.opts and _G.obsidian.opts.sync then
+    _G.obsidian.opts.sync.trigger = "on_write"
   end
 
   -- First-run: auto-offer setup wizard if no vaults are linked yet.
@@ -131,21 +156,18 @@ function M.setup(opts)
   -- With lazy ft='markdown', this may be deferred until the first .md buffer.
   if vim.tbl_isempty(config.remotes) then
     local function offer_wizard()
-      if not _G.Obsidian then return end -- obsidian hasn't loaded yet, skip
+      if not Obsidian then
+        return
+      end -- obsidian hasn't loaded yet, skip
       -- Only offer the wizard when we're actually inside an Obsidian vault.
-      if vim.fn.isdirectory(".obsidian") == 0 then return end
-      local choice = vim.fn.confirm(
-        "obsidian-sync: No vaults linked yet.\nRun the setup wizard now?",
-        "&Yes\n&No",
-        1
-      )
+      if vim.fn.isdirectory ".obsidian" == 0 then
+        return
+      end
+      local choice = vim.fn.confirm("obsidian-sync: No vaults linked yet.\nRun the setup wizard now?", "&Yes\n&No", 1)
       if choice == 1 then
         sync.setup()
       else
-        vim.notify(
-          "[obsidian-sync] Run :ObsidianSync or :Obsidian sync setup later.",
-          vim.log.levels.INFO
-        )
+        vim.notify("[obsidian-sync] Run :ObsidianSync or :Obsidian sync setup later.", vim.log.levels.INFO)
       end
     end
     -- Try early; also listen for obsidian workspace init as fallback.
@@ -162,6 +184,7 @@ function M.setup(opts)
   end
 end
 
+---Get the rclone backend instance.
 ---@return obsidian.sync.Backend?
 function M.backend()
   return require "obsidian-sync.backend"
@@ -178,7 +201,10 @@ vim.api.nvim_create_user_command("ObsidianSync", function()
   -- If any vault already configured, show the menu; otherwise jump to wizard.
   local has = false
   for _, ws in ipairs(Obsidian.workspaces or {}) do
-    if sync.is_configured(ws) then has = true; break end
+    if sync.is_configured(ws) then
+      has = true
+      break
+    end
   end
   if has then
     sync.menu()
@@ -190,6 +216,8 @@ end, { desc = "obsidian-sync: open sync menu or setup wizard" })
 -- ── checkhealth ─────────────────────────────────────────────────────────
 
 ---@module "obsidian"
+
+---Run inline health checks for :ObsidianSyncHealth.
 local function health()
   local start = vim.health.start or vim.health.report_start
   local ok = vim.health.ok or vim.health.report_ok
@@ -203,7 +231,7 @@ local function health()
   if rclone_bin and rclone_bin ~= "" then
     ok("rclone found: " .. rclone_bin)
   else
-    err("rclone not found on PATH. Install from https://rclone.org/install/")
+    err "rclone not found on PATH. Install from https://rclone.org/install/"
   end
 
   -- obsidian.nvim
@@ -227,10 +255,6 @@ end
 
 vim.api.nvim_create_user_command("ObsidianSyncHealth", health, { desc = "obsidian-sync: check health" })
 
--- Register with :checkhealth if available (Neovim >= 0.10)
-pcall(function()
-  local health_ns = vim.api.nvim_create_namespace "obsidian-sync"
-  -- Available via :checkhealth obsidian-sync (auto-discovered if lua/obsidian-sync/health.lua exists)
-end)
+-- :checkhealth obsidian-sync is auto-discovered via lua/obsidian-sync/health.lua.
 
 return M

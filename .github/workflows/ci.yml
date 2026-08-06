@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint + Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: selene
+      - name: Run selene
+        run: make lint
+      - name: Run stylua
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 2.1.0
+          args: --check .
+
+  types:
+    name: Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: v0.11.4
+      - name: Clone obsidian.nvim (for type resolution)
+        run: git clone --depth 1 https://github.com/obsidian-nvim/obsidian.nvim.git deps/obsidian.nvim
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache emmylua_check
+        id: cache-emmylua
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/emmylua_check
+          key: emmylua_check-0.23.2
+      - name: Install EmmyLua checker
+        if: steps.cache-emmylua.outputs.cache-hit != 'true'
+        run: cargo install emmylua_check --version 0.23.2 --locked
+      - name: Run type checker
+        run: make types
+
+  test:
+    name: Tests (${{ matrix.os }}, ${{ matrix.neovim_version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        neovim_version: ["v0.10.0", "v0.11.4", "nightly"]
+        include:
+          - os: macos-latest
+            neovim_version: v0.11.4
+          - os: windows-latest
+            neovim_version: v0.11.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rclone
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            curl -sL https://rclone.org/install.sh | sudo bash
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install rclone
+          else
+            choco install rclone -y
+          fi
+        shell: bash
+      - name: Clone obsidian.nvim (test dependency)
+        run: git clone --depth 1 https://github.com/obsidian-nvim/obsidian.nvim.git deps/obsidian.nvim
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim_version }}
+      - name: Run tests
+        run: make test

@@ -42,13 +42,13 @@ make chores   # style + lint + types + test — all must pass
 
 ## CI (GitHub Actions)
 
-Three workflows on PR and push to main:
+Single workflow (`.github/workflows/ci.yml`) on PR and push to main:
 
-| Workflow | File | What it does |
-|---|---|---|
-| Linting | `.github/workflows/lint.yml` | selene (lint) + stylua --check (style) |
-| Tests | `.github/workflows/test.yml` | mini.test on ubuntu (v0.10, v0.11, nightly), macos (v0.11), windows (v0.11) — installs rclone |
-| Types | `.github/workflows/types.yml` | emmylua_check via Rust toolchain |
+| Job | What |
+|---|---|
+| `lint` | selene + stylua --check |
+| `types` | emmylua_check (clones obsidian.nvim for resolution) |
+| `test` | mini.test on ubuntu (v0.10, v0.11, nightly), macos, windows — installs rclone |
 
 ## Project structure
 

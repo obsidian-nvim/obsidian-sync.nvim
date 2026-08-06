@@ -40,6 +40,7 @@ local config = {
   safe_resync = true,
   notify_events = true,
   progress_win = true,
+  verbose_progress = false,
   trigger = "manual",
   bisync = { exclude = {}, args = {} },
 }
@@ -169,6 +170,31 @@ function M.sync_once(dir, opts)
   end
 
   local handler = runner.make_handler(cwd)
+
+  -- Verbose progress: wrap handler to parse file-level rclone output.
+  local file_count = 0
+  if config.verbose_progress and ui then
+    local base_handler = handler
+    handler = function(err, data)
+      if base_handler then
+        base_handler(err, data)
+      end
+      if data then
+        -- rclone --verbose lines: "2024/... INFO  : path/file.md: Copied (new)"
+        local fname = data:match("INFO%s+:%s+(.-):%s")
+        if fname then
+          file_count = file_count + 1
+          ---@diagnostic disable-next-line: need-check-nil
+          vim.schedule(function()
+            if ui then
+              ui.update_detail(cwd, string.format("%d files  ·  %s", file_count, vim.fn.fnamemodify(fname, ":t")))
+            end
+          end)
+        end
+      end
+    end
+  end
+
   local args = rclone.bisync_args(cwd, remote, config.bisync)
   local resynced = false
 

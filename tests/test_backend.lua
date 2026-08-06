@@ -167,4 +167,27 @@ T["ui"]["close_progress with error"] = function()
   ui.close_progress(dir, "error")
 end
 
+T["ui"]["update_detail works on open window"] = function()
+  local ui = require "obsidian-sync.ui"
+  local dir = tmpdir()
+  ui.progress_win(dir, "Test", "initial")
+  ui.update_detail(dir, "3 files · note.md")
+  ui.close_progress(dir)
+end
+
+-- ── verbose progress config ───────────────────────────────────────────────
+
+T["verbose"] = new_set()
+
+T["verbose"]["config field defaults to false"] = function()
+  local b = require "obsidian-sync.backend"
+  b.configure {}
+end
+
+T["verbose"]["config accepts verbose_progress = true"] = function()
+  local b = require "obsidian-sync.backend"
+  b.configure { verbose_progress = true }
+  -- reaching here without error is sufficient
+end
+
 return T

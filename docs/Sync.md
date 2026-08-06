@@ -115,6 +115,7 @@ On completion it briefly flashes `󰸞 Synced` (green) / `󰅙 Error` (red) and 
 ---@field safe_resync? boolean log a friendly notice on --resync
 ---@field notify_events? boolean vim.notify on sync start / complete
 ---@field progress_win? boolean floating spinner window during sync
+---@field verbose_progress? boolean show per-file detail in progress window (default false)
 ---@field bisync? obsidian-sync.Config.Bisync
 
 require("obsidian-sync").setup {
@@ -125,6 +126,7 @@ require("obsidian-sync").setup {
   safe_resync = true,
   notify_events = true,
   progress_win = true,
+  verbose_progress = false,
   bisync = {
     exclude = { ".DS_Store", "*.bisync*", ".bisync/**" },
     args = {},

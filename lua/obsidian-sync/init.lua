@@ -19,6 +19,7 @@
 ---@field safe_resync boolean log a friendly notice instead of ERROR on first --resync
 ---@field notify_events boolean vim.notify on sync start / complete / error
 ---@field progress_win boolean floating spinner window while syncing
+---@field verbose_progress boolean show file-level detail in progress window (default false)
 ---@field trigger string "manual"|"on_write"|"continuous"
 ---@field bisync obsidian-sync.Config.Bisync
 
@@ -31,6 +32,7 @@ local DEFAULT = {
   safe_resync = true,
   notify_events = true,
   progress_win = true,
+  verbose_progress = false,
   trigger = "manual",
   bisync = { exclude = { ".DS_Store", "*.bisync*", ".bisync/**" }, args = {} },
 }

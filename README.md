@@ -121,6 +121,9 @@ require("obsidian-sync").setup {
   -- show floating spinner window during sync
   progress_win = true,
 
+  -- show per-file detail in progress window (\"12 files · note.md\")
+  verbose_progress = false,
+
   -- rclone bisync flags
   bisync = {
     exclude = { ".DS_Store", "*.bisync*", ".bisync/**" },

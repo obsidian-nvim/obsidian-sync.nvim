@@ -73,10 +73,12 @@ local function load()
   return decoded
 end
 
----Persist config to disk, stripping non-serialisable keys (functions).
+---Save config to disk (strips non-serialisable function keys).
 ---@param cfg obsidian-sync.Config
 local function persist(cfg)
   config = cfg
+  -- Ensure stdpath("data") exists (fresh Neovim may not have it).
+  vim.fn.mkdir(vim.fn.stdpath "data", "p")
   local saved = {}
   for k, v in pairs(config) do
     if type(v) == "function" then

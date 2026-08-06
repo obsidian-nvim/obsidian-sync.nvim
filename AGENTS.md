@@ -7,7 +7,7 @@ Registers an `obsidian.sync.Backend` into `obsidian.nvim` so `:Obsidian sync`, t
 
 - Neovim ≥ 0.10 (`vim.system`, `vim.uv`)
 - `rclone` on `$PATH`
-- `obsidian.nvim` on runtimepath — tests expect it at `/Users/acidsugarx/CODES/h/obsidian.nvim`
+- `obsidian.nvim` — cloned automatically to `deps/obsidian.nvim` by `make test`
 - No Lua dependencies beyond Neovim stdlib, no package manager needed
 
 ## Build & test
@@ -109,7 +109,6 @@ Every public function MUST carry `---@param` and `---@return` annotations. Use `
 ## Pitfalls
 
 - **`deps/mini.test` is a shallow clone** — `make test` clones it with `--filter=blob:none`. If tests fail with missing mini.test functions, run `rm -rf deps/mini.test && make test`.
-- **Hardcoded obsidian.nvim path** in `tests/minimal_init.lua` and `scripts/smoke.lua` — points at `/Users/acidsugarx/CODES/h/obsidian.nvim`. Adjust if your checkout is elsewhere.
 - **`running[cwd]` guard** in `sync_once` prevents overlapping syncs — debounce on `on_write` trigger will silently skip if a bisync is already in flight. This is deliberate; do not remove.
 - **`initialized[cwd]` flag** gates `--resync` retry to first-ever sync. After a successful sync, bisync failures are real errors.
 - **Statusline icons** use Nerd Font glyphs (`󰸞`, `󰑓`, `󰏤`, `󰅙`) — tests don't validate the glyph, only that the function returns a string.

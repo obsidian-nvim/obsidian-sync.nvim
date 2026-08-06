@@ -3,6 +3,7 @@ SHELL:=/usr/bin/env bash
 .DEFAULT_GOAL:=help
 PROJECT_NAME = "obsidian-sync.nvim"
 MINITEST = deps/mini.test
+OBSIDIAN = deps/obsidian.nvim
 
 NVIM ?= nvim
 VIMRUNTIME ?= $(shell $(NVIM) --clean --headless +'lua io.write(vim.env.VIMRUNTIME)' +q 2>/dev/null)
@@ -27,12 +28,16 @@ types: ## Type check with EmmyLua
 	VIMRUNTIME=$(VIMRUNTIME) emmylua_check ./lua/ --config .emmyrc.json
 
 .PHONY: test
-test: $(MINITEST) ## Run unit tests with mini.test
+test: $(MINITEST) $(OBSIDIAN) ## Run unit tests with mini.test
 	nvim --headless --clean --noplugin -u ./tests/minimal_init.lua -c "lua MiniTest.run()"
 
 $(MINITEST):
 	mkdir -p deps
 	git clone --filter=blob:none https://github.com/echasnovski/mini.test $(MINITEST)
+
+$(OBSIDIAN):
+	mkdir -p deps
+	git clone --depth 1 https://github.com/obsidian-nvim/obsidian.nvim.git $(OBSIDIAN)
 
 ################################################################################
 ##@ Helpers
@@ -42,4 +47,4 @@ help:  ## Display this help
 	@echo ""
 	@echo "To get started:"
 	@echo "  >>> $$(tput bold)make chores$$(tput sgr0)"
-	@awk 'BEGIN {FS = ":.*##"; printf "\033[36m\033[0m"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\033[36m\033[0m"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\\n", $$1, $$2 } /^##@/ { printf "\\n\\033[1m%s\\033[0m\\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

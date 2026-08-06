@@ -1,38 +1,12 @@
--- Bootstrap for running mini.test-based tests.
--- Usage:
---   nvim --headless --clean -u tests/minimal_init.lua -c "lua MiniTest.run()"
+-- Add current directory to 'runtimepath' to be able to use 'lua' files
+vim.opt.rtp:append(vim.uv.cwd())
+-- Add 'mini.test' from deps (cloned by Makefile)
+vim.opt.rtp:append "deps/mini.test"
+-- Add 'obsidian.nvim' from deps (cloned by Makefile)
+vim.opt.rtp:append "deps/obsidian.nvim"
 
-local cwd = vim.fn.getcwd()
-
--- Ensure mini.test is available
-local mini_test_dir = cwd .. "/deps/mini.test"
-if vim.fn.isdirectory(mini_test_dir) == 0 then
-  vim.fn.system { "git", "clone", "--filter=blob:none", "https://github.com/echasnovski/mini.test", mini_test_dir }
-end
-
--- obsidian.nvim: try CI path (cloned by workflow), fall back to local checkout
-local obsidian_path = cwd .. "/deps/obsidian.nvim"
-if vim.fn.isdirectory(obsidian_path) == 0 then
-  obsidian_path = "/Users/acidsugarx/CODES/h/obsidian.nvim"
-end
-
-vim.opt.runtimepath:prepend(mini_test_dir)
-vim.opt.runtimepath:prepend(obsidian_path)
-vim.opt.runtimepath:prepend(cwd)
-
--- Minimal Neovim settings
-vim.cmd [[set rtp+=.]]
-vim.o.swapfile = false
-vim.bo.swapfile = false
-vim.o.swapfile = false
-
--- Ensure stdpath directories exist (--clean doesn't create them)
-vim.fn.mkdir(vim.fn.stdpath "data", "p")
-vim.fn.mkdir(vim.fn.stdpath "config", "p")
-
--- Load mini.test
-local MiniTest = require "mini.test"
-MiniTest.setup()
+-- Set up 'mini.test'
+require("mini.test").setup()
 
 -- Global mocks registry for tests to use
 _G.__obsidian_sync_mocks = {}

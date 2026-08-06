@@ -1,8 +1,8 @@
 -- Headless smoke test: two-way sync between a local vault and a local folder
 -- through the rclone backend.
-local fork = "/Users/acidsugarx/CODES/h/obsidian.nvim"
-vim.opt.runtimepath:prepend(fork)
-vim.opt.runtimepath:prepend(vim.fn.getcwd())
+-- Prerequisites: rclone on PATH, deps/obsidian.nvim cloned (make test does this).
+vim.opt.rtp:append(vim.uv.cwd())
+vim.opt.rtp:append "deps/obsidian.nvim"
 
 local vault = vim.fn.tempname() .. ".vault"
 local remote = vim.fn.tempname() .. ".remote"
@@ -57,7 +57,6 @@ vim.fn.writefile({ "remote version" }, remote .. "/Conflict.md")
 sync.sync_once()
 for _ = 1, 100 do
   vim.wait(100)
-  -- rclone keeps both as Conflict.md (local) + Conflict.md.remote/
   local conflicts = vim.fn.glob(remote .. "/Conflict.md*")
   if conflicts ~= "" and vim.fn.glob(vault .. "/Conflict.md*") ~= "" then
     break

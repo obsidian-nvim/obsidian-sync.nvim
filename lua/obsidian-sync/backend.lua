@@ -42,7 +42,6 @@ local config = {
   progress_win = true,
   trigger = "manual",
   bisync = { exclude = {}, args = {} },
-  persist = nil,
 }
 
 ---@type table<string, uv.uv_timer_t>
@@ -299,8 +298,8 @@ function M.disconnect(ws)
   local dir = norm(tostring(ws.root))
   M.pause(dir)
   config.remotes[dir] = nil
-  if config.persist then
-    config.persist(config)
+  if M.persist then
+    M.persist(config)
   end
   notify(string.format("Unlinked %s from sync", ws.name))
 end
@@ -313,8 +312,8 @@ end
 ---@param target string rclone remote target
 local function link(ws, dir, target)
   config.remotes[dir] = target
-  if config.persist then
-    config.persist(config)
+  if M.persist then
+    M.persist(config)
   end
   notify(string.format("Linked %s <-> %s", ws.name, target))
   local api = require "obsidian.api"

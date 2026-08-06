@@ -26,10 +26,12 @@ def get_change_log_notes() -> str:
             if line.startswith("## "):
                 if line.startswith("## Unreleased"):
                     continue
+                # Match "## [v0.1.0]" or "## [v0.1.0] — 2026-08-06"
                 if line.startswith(f"## [{TAG}]"):
                     in_current_section = True
                     continue
-                break
+                if in_current_section:
+                    break
             if in_current_section:
                 if line.startswith("### Added"):
                     line = ADDED_HEADER + "\n"

@@ -157,11 +157,24 @@ T["backend"]["pause returns true"] = function()
   eq(true, b.pause(tmpdir()))
 end
 
-T["backend"]["log does not crash"] = function()
+T["backend"]["log opens split so closing it cannot quit nvim"] = function()
   local b = require "obsidian-sync.backend"
   local root = tmpdir()
   b.configure { remotes = {} }
+  vim.cmd "only"
   b.log(root)
+  -- must open a second window, not replace the current buffer
+  eq(2, #vim.api.nvim_list_wins())
+  -- q mapping must close the window, not delete the buffer in place
+  local buf = vim.api.nvim_get_current_buf()
+  local rhs
+  for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+    if m.lhs == "q" then
+      rhs = m.rhs
+    end
+  end
+  eq(true, rhs ~= nil and rhs:lower() == "<cmd>close<cr>")
+  vim.cmd "only"
   -- Clean up log buffer
   require("obsidian.sync.runner").logs[root] = nil
 end

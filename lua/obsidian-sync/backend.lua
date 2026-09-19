@@ -346,9 +346,36 @@ function M.pause(dir)
 end
 
 ---Open the sync log buffer for a vault.
+---
+---Opens in a bottom split instead of delegating to upstream's
+---`runner.open_log_buf`, which swaps the current buffer in place — with a
+---single window that means closing the log (`:q`) quits Neovim entirely.
+---Here `q` / `:q` / `<c-w>c` close only the log window; `bufhidden=wipe`
+---cleans the buffer up with it.
 ---@param dir string vault root
 function M.log(dir)
-  require("obsidian.sync.runner").open_log_buf(norm(dir))
+  local cwd = norm(dir)
+  local runner = require "obsidian.sync.runner"
+  local name = ("Obsidian Sync Log %s"):format(cwd)
+
+  -- Wipe a previous log buffer for this vault so re-opening cannot hit a
+  -- duplicate-name error. `nvim_buf_get_name` returns the expanded absolute
+  -- path, so match by substring instead of equality.
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(b):find(name, 1, true) then
+      pcall(vim.api.nvim_buf_delete, b, { force = true })
+    end
+  end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, runner.logs[cwd] or {})
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].bufhidden = "wipe"
+  vim.api.nvim_buf_set_name(buf, name)
+
+  vim.cmd "botright split"
+  vim.api.nvim_win_set_buf(0, buf)
+  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, silent = true })
 end
 
 ---Format a workspace for display in the sync menu.

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/smoke.lua` now refuses to run without an isolated `XDG_DATA_HOME` —
   previously every run persisted its temp vault mappings into the user's real
   `obsidian-sync.json`.
+- `:Obsidian sync log` no longer replaces the current buffer in the only
+  window (upstream `runner.open_log_buf` behaviour): the log now opens in a
+  bottom split, `q`/`:q` close just the log window instead of quitting
+  Neovim, and the buffer wipes itself on close.
 
 ## [v0.1.1] — 2026-09-19
 

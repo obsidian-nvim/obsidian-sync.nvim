@@ -181,7 +181,7 @@ function M.sync_once(dir, opts)
       end
       if data then
         -- rclone --verbose lines: "2024/... INFO  : path/file.md: Copied (new)"
-        local fname = data:match("INFO%s+:%s+(.-):%s")
+        local fname = data:match "INFO%s+:%s+(.-):%s"
         if fname then
           file_count = file_count + 1
           ---@diagnostic disable-next-line: need-check-nil
@@ -197,8 +197,39 @@ function M.sync_once(dir, opts)
 
   local args = rclone.bisync_args(cwd, remote, config.bisync)
   local resynced = false
+  local lock_retried = false
+  local cur_args = args
 
-  local on_exit = function(out)
+  local function fail(msg)
+    runner.append_log(cwd, msg, { error = true })
+    if ui then
+      vim.schedule(function()
+        ui.close_progress(cwd, "error")
+      end)
+    end
+  end
+
+  ---@type string[] stderr accumulated from the current/retry run
+  local stderr_chunks
+  -- vim.system leaves SystemCompleted.stdout/stderr nil when output is
+  -- streamed to handlers, so stderr is tee'd into a buffer for on_exit.
+  local function stderr_tee(err, data)
+    if handler then
+      handler(err, data)
+    end
+    if data then
+      stderr_chunks[#stderr_chunks + 1] = data
+    end
+  end
+
+  ---@type fun(out: vim.SystemCompleted)
+  local on_exit
+  local function launch(argv)
+    stderr_chunks = {}
+    running[cwd] = rclone.run_async(argv, { cwd = cwd, handler = handler, stderr = stderr_tee }, on_exit)
+  end
+
+  on_exit = function(out)
     running[cwd] = nil
     if out.code == 0 then
       initialized[cwd] = true
@@ -216,6 +247,29 @@ function M.sync_once(dir, opts)
       return
     end
 
+    -- Stale-lock recovery must precede the --resync fallback: a prior lock
+    -- blocks --resync too, and a lock error says nothing about path alignment.
+    local lock = rclone.lock_error(table.concat(stderr_chunks))
+    if lock then
+      if lock == true then
+        fail "bisync blocked by a prior lock file — remove it per rclone's deletefile tip and re-run"
+        return
+      end
+      if lock_retried then
+        fail(string.format("bisync still blocked by lock file %s after stale-lock recovery", lock))
+        return
+      end
+      local removed, pid = rclone.clear_stale_lock(lock)
+      if not removed then
+        fail(string.format("bisync lock %s is owned by a live process (PID %s) — not removing it", lock, pid or "?"))
+        return
+      end
+      lock_retried = true
+      runner.append_log(cwd, string.format("Removed stale bisync lock (dead PID %s) — retrying", pid))
+      launch(cur_args)
+      return
+    end
+
     if config.auto_resync and not initialized[cwd] and not resynced then
       resynced = true
       if config.safe_resync then
@@ -223,25 +277,16 @@ function M.sync_once(dir, opts)
       else
         runner.append_log(cwd, "Initial bisync failed; retrying with --resync", { error = true })
       end
-      local retry = vim.list_extend({}, args)
-      vim.list_extend(retry, { "--resync" })
-      running[cwd] = rclone.run_async(retry, { cwd = cwd, handler = handler }, on_exit)
+      cur_args = vim.list_extend({}, args)
+      vim.list_extend(cur_args, { "--resync" })
+      launch(cur_args)
       return
     end
 
-    runner.append_log(
-      cwd,
-      string.format("rclone bisync exited with code %s: %s", out.code, vim.trim(out.stderr or "")),
-      { error = true }
-    )
-    if ui then
-      vim.schedule(function()
-        ui.close_progress(cwd, "error")
-      end)
-    end
+    fail(string.format("rclone bisync exited with code %s: %s", out.code, vim.trim(table.concat(stderr_chunks))))
   end
 
-  running[cwd] = rclone.run_async(args, { cwd = cwd, handler = handler }, on_exit)
+  launch(args)
 end
 
 ---Start continuous sync (runs sync_once immediately, then on a timer).

@@ -1,6 +1,7 @@
 - [Commands](#commands)
 - [Triggers](#triggers)
 - [First sync & resync](#first-sync--resync)
+- [Stale locks](#stale-locks)
 - [Conflicts](#conflicts)
 - [Statusline](#statusline)
 - [Progress window](#progress-window)
@@ -55,7 +56,11 @@ Overlapping calls (debounce triggers while a sync is already running) are silent
 
 With `auto_resync = true` (default), the plugin detects this and retries with `--resync` automatically, logging a friendly notice.  The resync copies from **both** directions, so nothing is lost — it's a one-time alignment.
 
-On subsequent runs the normal bisync is incremental and fast (10–20 seconds on a ~45 MB vault over WebDAV).
+## Stale locks
+
+`rclone bisync` guards against concurrent runs with a lock file in the rclone cache dir. If a bisync is killed without cleanup (nvim crash, `SIGKILL`, reboot, low battery), the lock stays behind and every later run fails with `prior lock file found`.
+
+The plugin recovers automatically: it reads the PID recorded in the `.lck`, probes whether that process still exists, and — only if the owner is dead — deletes the lock and retries the same bisync once. A lock owned by a **live** process is never touched; you get an error naming the PID instead.
 
 ## Conflicts
 

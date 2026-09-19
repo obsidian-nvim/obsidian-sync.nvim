@@ -63,6 +63,57 @@ for _ = 1, 100 do
   end
 end
 print("conflict artifacts:", vim.fn.glob(vault .. "/Conflict.md*"))
+
+-- stale lock recovery: poison the bisync lock with a dead PID, expect the
+-- plugin to remove it and retry the same bisync
+local cache = (
+  vim.env.XDG_CACHE_HOME
+  or (vim.uv.os_uname().sysname == "Darwin" and (vim.env.HOME .. "/Library/Caches") or (vim.env.HOME .. "/.cache"))
+) .. "/rclone/bisync"
+local listings = vim.fn.glob(cache .. "/*" .. vim.fn.fnamemodify(vault, ":t") .. "*.path1.lst", false, true)
+table.sort(listings, function(a, b)
+  return vim.fn.getftime(a) > vim.fn.getftime(b)
+end)
+assert(#listings > 0, "FAIL: no bisync listing found for smoke vault")
+local session = listings[1]:sub(1, -1 * #".path1.lst" - 1)
+
+local function poison(pid)
+  local now = os.time()
+  -- rclone auto-deletes locks with no/past TimeExpires; mirror the
+  -- far-future expiry of a real renewing run
+  vim.fn.writefile({
+    vim.fn.json_encode {
+      Session = session,
+      PID = pid,
+      TimeRenewed = os.date("!%Y-%m-%dT%H:%M:%SZ", now),
+      TimeExpires = os.date("!%Y-%m-%dT%H:%M:%SZ", now + 365 * 24 * 60 * 60),
+    },
+  }, session .. ".lck")
+end
+
+poison "4194305" -- above every unix pid_max -> guaranteed dead
+vim.fn.writefile({ "# after lock" }, vault .. "/After Lock.md")
+sync.sync_once()
+local recovered = false
+for _ = 1, 100 do
+  vim.wait(100)
+  if vim.fn.filereadable(remote .. "/After Lock.md") == 1 and vim.uv.fs_stat(session .. ".lck") == nil then
+    recovered = true
+    break
+  end
+end
+assert(recovered, "FAIL: stale lock was not auto-recovered")
+print "PASS stale-lock recovery (dead PID)"
+
+-- live lock must be refused, not deleted
+poison(tostring(vim.fn.getpid()))
+vim.fn.writefile({ "# live lock" }, vault .. "/Live Lock.md")
+sync.sync_once()
+vim.wait(2000)
+assert(vim.uv.fs_stat(session .. ".lck") ~= nil, "FAIL: live lock was deleted")
+assert(vim.fn.filereadable(remote .. "/Live Lock.md") == 0, "FAIL: sync ran despite live lock")
+print "PASS live lock refused"
+
 print "SMOKE OK"
 
 vim.cmd "qa!"

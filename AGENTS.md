@@ -111,4 +111,5 @@ Every public function MUST carry `---@param` and `---@return` annotations. Use `
 - **`deps/mini.test` is a shallow clone** — `make test` clones it with `--filter=blob:none`. If tests fail with missing mini.test functions, run `rm -rf deps/mini.test && make test`.
 - **`running[cwd]` guard** in `sync_once` prevents overlapping syncs — debounce on `on_write` trigger will silently skip if a bisync is already in flight. This is deliberate; do not remove.
 - **`initialized[cwd]` flag** gates `--resync` retry to first-ever sync. After a successful sync, bisync failures are real errors.
+- **Stale bisync locks** — a killed rclone leaves a `.lck` in the rclone cache dir that blocks all runs ("prior lock file found"). `rclone.lock_error` + `rclone.clear_stale_lock` handle this in `sync_once` before the `--resync` fallback (a lock blocks `--resync` too). The lock is only deleted when its recorded PID is dead (probe via `vim.uv.kill(pid, 0)`, ESRCH = dead).
 - **Statusline icons** use Nerd Font glyphs (`󰸞`, `󰑓`, `󰏤`, `󰅙`) — tests don't validate the glyph, only that the function returns a string.

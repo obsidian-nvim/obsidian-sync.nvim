@@ -42,6 +42,52 @@ T["rclone"]["bisync_args should handle empty config"] = function()
   eq("r:", args[#args])
 end
 
+T["rclone"]["lock_error parses path from ANSI-coloured stderr"] = function()
+  local stderr =
+    "2026/09/19 NOTICE: Failed to bisync: \27[31mprior lock file found: \27[93m/tmp/bisync/vault.lck \27[0m\n"
+  eq("/tmp/bisync/vault.lck", require("obsidian-sync.rclone").lock_error(stderr))
+end
+
+T["rclone"]["lock_error falls back to the deletefile tip"] = function()
+  local stderr = 'NOTICE: prior lock file found\nTip: run rclone deletefile "/tmp/bisync/vault.lck" to remove it'
+  eq("/tmp/bisync/vault.lck", require("obsidian-sync.rclone").lock_error(stderr))
+end
+
+T["rclone"]["lock_error returns true when no path parses"] = function()
+  eq(true, require("obsidian-sync.rclone").lock_error "NOTICE: prior lock file found")
+end
+
+T["rclone"]["lock_error returns nil for non-lock errors"] = function()
+  eq(nil, require("obsidian-sync.rclone").lock_error "NOTICE: Failed to bisync: directory not empty")
+end
+
+T["rclone"]["clear_stale_lock keeps a lock owned by a live process"] = function()
+  local path = os.tmpname() .. ".lck"
+  vim.fn.writefile({ vim.fn.json_encode { Session = "s", PID = tostring(vim.fn.getpid()) } }, path)
+  local removed, pid = require("obsidian-sync.rclone").clear_stale_lock(path)
+  eq(false, removed)
+  eq(tostring(vim.fn.getpid()), pid)
+  eq(1, vim.fn.filereadable(path))
+  vim.fn.delete(path)
+end
+
+T["rclone"]["clear_stale_lock removes a lock owned by a dead process"] = function()
+  if vim.fn.has "win32" == 1 then
+    return -- liveness probe via signal 0 is not portable to Windows CI
+  end
+  local path = os.tmpname() .. ".lck"
+  -- PID above every unix pid_max (Linux 4194304, macOS 99999) is guaranteed dead
+  vim.fn.writefile({ vim.fn.json_encode { Session = "s", PID = "4194305" } }, path)
+  local removed, pid = require("obsidian-sync.rclone").clear_stale_lock(path)
+  eq(true, removed)
+  eq("4194305", pid)
+  eq(0, vim.fn.filereadable(path))
+end
+
+T["rclone"]["clear_stale_lock refuses unreadable lock"] = function()
+  eq(false, require("obsidian-sync.rclone").clear_stale_lock "/nonexistent/dir/vault.lck")
+end
+
 -- ── backend contract ─────────────────────────────────────────────────────
 
 T["backend"] = new_set()

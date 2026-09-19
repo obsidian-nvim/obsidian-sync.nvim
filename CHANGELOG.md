@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Stale `rclone bisync` lock files (left by a killed run) no longer wedge every
+  sync: the lock's recorded PID is probed and a dead owner's lock is removed
+  with an automatic retry; live-owner locks are reported with their PID and
+  left alone. Previously such failures also triggered a pointless `--resync`
+  retry.
+
 ## [v0.1.0] — 2026-08-06
 
 ### Added

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.1] — 2026-09-19
+
 ### Fixed
 - Stale `rclone bisync` lock files (left by a killed run) no longer wedge every
   sync: the lock's recorded PID is probed and a dead owner's lock is removed
@@ -29,5 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `:checkhealth obsidian-sync` integration
 - CI: lint (selene + stylua), types (emmylua_check), tests (mini.test on ubuntu/macos/windows)
 
-[Unreleased]: https://github.com/obsidian-nvim/obsidian-sync.nvim/compare/v0.1.0...main
+[Unreleased]: https://github.com/obsidian-nvim/obsidian-sync.nvim/compare/v0.1.1...main
+[v0.1.1]: https://github.com/obsidian-nvim/obsidian-sync.nvim/releases/tag/v0.1.1
 [v0.1.0]: https://github.com/obsidian-nvim/obsidian-sync.nvim/releases/tag/v0.1.0

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `scripts/smoke.lua` now refuses to run without an isolated `XDG_DATA_HOME` —
+  previously every run persisted its temp vault mappings into the user's real
+  `obsidian-sync.json`.
+
 ## [v0.1.1] — 2026-09-19
 
 ### Fixed

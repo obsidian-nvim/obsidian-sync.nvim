@@ -29,8 +29,11 @@ nvim --headless --clean --noplugin -u tests/minimal_init.lua -c "lua MiniTest.ru
 Smoke test (requires rclone, hits real filesystem):
 
 ```
-nvim --headless --clean -u scripts/smoke.lua
+XDG_DATA_HOME=$(mktemp -d) nvim --headless --clean -u scripts/smoke.lua
 ```
+
+The `XDG_DATA_HOME` override is mandatory — the script refuses to run without
+it so it can never persist temp vault mappings into your real config.
 
 `deps/` is gitignored — `make test` bootstraps it on first run.
 

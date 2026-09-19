@@ -1,6 +1,16 @@
 -- Headless smoke test: two-way sync between a local vault and a local folder
 -- through the rclone backend.
 -- Prerequisites: rclone on PATH, deps/obsidian.nvim cloned (make test does this).
+--
+-- The script persists plugin state to stdpath("data")/obsidian-sync.json, so it
+-- MUST run with an isolated XDG_DATA_HOME — otherwise it pollutes your real
+-- config with temp-dir vault mappings:
+--   XDG_DATA_HOME=$(mktemp -d) nvim --headless --clean -u scripts/smoke.lua
+assert(
+  vim.env.XDG_DATA_HOME ~= nil and vim.fn.stdpath("data"):find(vim.env.XDG_DATA_HOME, 1, true) ~= nil,
+  "smoke test writes plugin state — isolate it first:\n  XDG_DATA_HOME=$(mktemp -d) nvim --headless --clean -u scripts/smoke.lua"
+)
+
 vim.opt.rtp:append(vim.uv.cwd())
 vim.opt.rtp:append "deps/obsidian.nvim"
 

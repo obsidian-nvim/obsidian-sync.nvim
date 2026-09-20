@@ -28,8 +28,8 @@ types: ## Type check with EmmyLua
 	VIMRUNTIME=$(VIMRUNTIME) emmylua_check ./lua/ --config .emmyrc.json
 
 .PHONY: test
-test: $(MINITEST) $(OBSIDIAN) ## Run unit tests with mini.test
-	nvim --headless --clean --noplugin -u ./tests/minimal_init.lua -c "lua MiniTest.run()"
+test: $(MINITEST) $(OBSIDIAN) ## Run unit tests with mini.test (isolated XDG_DATA_HOME — never touches your real state)
+	XDG_DATA_HOME=$(CURDIR)/.test-xdg nvim --headless --clean --noplugin -u ./tests/minimal_init.lua -c "lua MiniTest.run()"
 
 $(MINITEST):
 	mkdir -p deps

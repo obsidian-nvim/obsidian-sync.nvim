@@ -40,6 +40,11 @@ local DEFAULT = {
 ---@type obsidian-sync.Config
 local config
 
+---Vault roots deliberately unlinked this session (via `backend.disconnect`).
+---`persist` must not resurrect them from disk state when merging.
+---@type table<string, boolean>
+local unlinked = {}
+
 ---Return the persistent state JSON file path.
 ---@return string
 local function state_file()
@@ -76,9 +81,20 @@ local function load()
 end
 
 ---Save config to disk (strips non-serialisable function keys).
+---
+---Merge-on-write: a concurrently running (or simply older) Neovim session
+---must never wipe vault mappings it never saw — last-writer-wins clobbering
+---destroyed real configs in the wild. Remotes present on disk that this
+---process neither knows nor deliberately unlinked are preserved.
 ---@param cfg obsidian-sync.Config
 local function persist(cfg)
   config = cfg
+  local disk = load()
+  for root, remote in pairs(disk.remotes or {}) do
+    if config.remotes[root] == nil and not unlinked[root] then
+      config.remotes[root] = remote
+    end
+  end
   -- Ensure stdpath("data") exists (fresh Neovim may not have it).
   vim.fn.mkdir(vim.fn.stdpath "data", "p")
   local saved = {}
@@ -98,6 +114,13 @@ local function persist(cfg)
   pcall(vim.fn.writefile, vim.split(encoded, "\n"), state_file())
 end
 
+---Record a deliberate vault→remote unlink so the next `persist` merge does
+---not resurrect the mapping from disk.
+---@param root string vault root (normalised on lookup)
+function M.unlink(root)
+  unlinked[norm(root)] = true
+end
+
 ---Configure the plugin and register the backend with obsidian.nvim.
 ---@param opts? obsidian-sync.Config
 function M.setup(opts)
@@ -108,7 +131,11 @@ function M.setup(opts)
 
   local normalized = {}
   for root, remote in pairs(config.remotes) do
-    normalized[norm(root)] = remote
+    -- Drop keys deliberately unlinked this session: they can re-enter via
+    -- the disk merge above even though disconnect() removed them.
+    if not unlinked[root] then
+      normalized[norm(root)] = remote
+    end
   end
   config.remotes = normalized
   persist(config)

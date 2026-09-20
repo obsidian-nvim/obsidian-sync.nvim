@@ -58,6 +58,34 @@ T["persistence"]["config round-trips through JSON"] = function()
   os.remove(state)
 end
 
+T["persistence"]["stale session cannot wipe disk remotes"] = function()
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync.json"
+  os.remove(state)
+  -- mapping written by "another session"
+  vim.fn.writefile({ vim.fn.json_encode { remotes = { ["/tmp/test-vault"] = "s3:test" } } }, state)
+
+  require("obsidian-sync").setup { remotes = {} }
+
+  local decoded = vim.fn.json_decode(table.concat(vim.fn.readfile(state), "\n"))
+  eq("s3:test", decoded.remotes["/tmp/test-vault"], "disk mapping must survive a stale empty write")
+  os.remove(state)
+end
+
+T["persistence"]["unlink is not resurrected by later persists"] = function()
+  local state = vim.fn.stdpath "data" .. "/obsidian-sync.json"
+  os.remove(state)
+  vim.fn.writefile({ vim.fn.json_encode { remotes = { ["/tmp/test-vault"] = "s3:test" } } }, state)
+
+  require("obsidian-sync").setup { remotes = {} }
+  require("obsidian-sync").unlink "/tmp/test-vault"
+  require("obsidian-sync").setup { remotes = { ["/tmp/other-vault"] = "s3:other" } }
+
+  local decoded = vim.fn.json_decode(table.concat(vim.fn.readfile(state), "\n"))
+  eq(nil, decoded.remotes["/tmp/test-vault"])
+  eq("s3:other", decoded.remotes["/tmp/other-vault"])
+  os.remove(state)
+end
+
 -- ── path normalisation ───────────────────────────────────────────────────
 
 T["normalisation"] = new_set()

@@ -396,6 +396,9 @@ function M.disconnect(ws)
   local dir = norm(tostring(ws.root))
   M.pause(dir)
   config.remotes[dir] = nil
+  -- Record the deliberate unlink BEFORE persisting: the merge-on-write in
+  -- persist() would otherwise resurrect the mapping from disk state.
+  require("obsidian-sync").unlink(dir)
   if M.persist then
     M.persist(config)
   end

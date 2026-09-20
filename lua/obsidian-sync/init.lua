@@ -41,9 +41,18 @@ local DEFAULT = {
 local config
 
 ---Vault roots deliberately unlinked this session (via `backend.disconnect`).
----`persist` must not resurrect them from disk state when merging.
+---`persist` must not resurrect them from disk state when merging. Keys are
+---stored normalised, but disk/config may carry the raw form, so lookups
+---check both.
 ---@type table<string, boolean>
 local unlinked = {}
+
+---Check whether a vault root (raw or normalised) was unlinked this session.
+---@param root string
+---@return boolean
+local function was_unlinked(root)
+  return unlinked[root] == true or unlinked[norm(root)] == true
+end
 
 ---Return the persistent state JSON file path.
 ---@return string
@@ -91,11 +100,10 @@ local function persist(cfg)
   config = cfg
   local disk = load()
   for root, remote in pairs(disk.remotes or {}) do
-    if config.remotes[root] == nil and not unlinked[root] then
+    if config.remotes[root] == nil and not was_unlinked(root) then
       config.remotes[root] = remote
     end
   end
-  -- Ensure stdpath("data") exists (fresh Neovim may not have it).
   vim.fn.mkdir(vim.fn.stdpath "data", "p")
   local saved = {}
   for k, v in pairs(config) do
@@ -133,7 +141,7 @@ function M.setup(opts)
   for root, remote in pairs(config.remotes) do
     -- Drop keys deliberately unlinked this session: they can re-enter via
     -- the disk merge above even though disconnect() removed them.
-    if not unlinked[root] then
+    if not was_unlinked(root) then
       normalized[norm(root)] = remote
     end
   end

@@ -66,8 +66,15 @@ T["persistence"]["stale session cannot wipe disk remotes"] = function()
 
   require("obsidian-sync").setup { remotes = {} }
 
+  -- assert by value: key form is platform-dependent (norm() may rewrite it)
+  local kept = false
   local decoded = vim.fn.json_decode(table.concat(vim.fn.readfile(state), "\n"))
-  eq("s3:test", decoded.remotes["/tmp/test-vault"], "disk mapping must survive a stale empty write")
+  for _, v in pairs(decoded.remotes) do
+    if v == "s3:test" then
+      kept = true
+    end
+  end
+  eq(true, kept, "disk mapping must survive a stale empty write")
   os.remove(state)
 end
 
@@ -80,9 +87,18 @@ T["persistence"]["unlink is not resurrected by later persists"] = function()
   require("obsidian-sync").unlink "/tmp/test-vault"
   require("obsidian-sync").setup { remotes = { ["/tmp/other-vault"] = "s3:other" } }
 
+  local unlinked_gone, other_kept = true, false
   local decoded = vim.fn.json_decode(table.concat(vim.fn.readfile(state), "\n"))
-  eq(nil, decoded.remotes["/tmp/test-vault"])
-  eq("s3:other", decoded.remotes["/tmp/other-vault"])
+  for _, v in pairs(decoded.remotes) do
+    if v == "s3:test" then
+      unlinked_gone = false
+    end
+    if v == "s3:other" then
+      other_kept = true
+    end
+  end
+  eq(true, unlinked_gone)
+  eq(true, other_kept)
   os.remove(state)
 end
 

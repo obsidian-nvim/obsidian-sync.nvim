@@ -47,13 +47,6 @@ local config
 ---@type table<string, boolean>
 local unlinked = {}
 
----Check whether a vault root (raw or normalised) was unlinked this session.
----@param root string
----@return boolean
-local function was_unlinked(root)
-  return unlinked[root] == true or unlinked[norm(root)] == true
-end
-
 ---Return the persistent state JSON file path.
 ---@return string
 local function state_file()
@@ -69,6 +62,12 @@ local function norm(dir)
     return real
   end
   return vim.fs.normalize(vim.fn.fnamemodify(tostring(dir), ":p"))
+end
+---Check whether a vault root (raw or normalised) was unlinked this session.
+---@param root string
+---@return boolean
+local function was_unlinked(root)
+  return unlinked[root] == true or unlinked[norm(root)] == true
 end
 
 ---Load persisted config from disk.
